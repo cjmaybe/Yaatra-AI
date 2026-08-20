@@ -174,5 +174,10 @@ app.post('/api/vision/ocr', async (req,res)=>{
 });
 
 app.get('*', (_req,res)=>res.sendFile(path.join(__dirname,'frontend','index.html')));
-export {app};
-if(process.env.FIREBASE_FUNCTIONS !== 'true') app.listen(port,()=>console.log(`Yaatra running on http://localhost:${port}`));
+export default app;
+
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(port, () => {
+    console.log(`Yaatra running on http://localhost:${port}`);
+  });
+}
