@@ -1,0 +1,888 @@
+You are a senior full-stack engineer, UI/UX engineer, AI engineer, and product architect.
+I am building a project called **Yaatra — Discover. Plan. Explore.**
+I have uploaded my existing index.html. Treat that file as the starting point and preserve its existing visual identity, layout, components, animations, mascot, colors, typography, and overall UX wherever practical.
+Your task is to transform the current prototype/demo into a **fully functional, production-ready travel web application**.
+DO NOT just explain how to build it.
+I want you to actually modify/create the required files and implement the functionality.
+==================================================
+
+1. PRODUCT VISION
+   ==================================================
+
+Yaatra is an AI-powered travel companion.
+The user should be able to:
+
+- Discover nearby restaurants, hotels, attractions, hospitals, pharmacies, ATMs, fuel stations and other useful places.
+- Search using natural language.
+- Ask Yaatra AI travel questions.
+- Generate personalized trips using destination, dates, budget, travellers, interests, accommodation and transportation.
+- Receive a day-by-day itinerary.
+- View places and routes on a map.
+- Save trips.
+- Edit and regenerate itineraries.
+- Track trip expenses.
+- Use currency conversion.
+- Translate common travel phrases.
+- Scan signs/menus using camera or uploaded images.
+- View trips on a travel calendar.
+- Get vehicle rental information.
+- Access emergency assistance.
+- Use the application on desktop and mobile.
+
+The final result must feel like a real travel product, not a collection of disconnected demos.
+==================================================
+2. IMPORTANT: USE MY EXISTING UI
+First inspect the COMPLETE uploaded index.html.
+Do not blindly replace the existing design.
+The existing project already contains:
+
+- Yaatra branding
+- Home page
+- Nearby places
+- Leaflet map
+- Trip planner
+- Itinerary result page
+- My Trips
+- Profile
+- Tools
+- Currency converter
+- Translator
+- Lens scanner
+- Travel calendar
+- Vehicle rental
+- Expense tracker
+- Emergency support
+- Yaatra AI floating chatbot
+- Mascot animations
+- Demo fallback logic
+
+Keep the current visual style wherever possible.
+Improve the implementation underneath the UI instead of destroying the UI.
+==================================================
+3. REQUIRED TECHNOLOGY STACK
+Use this architecture:
+FRONTEND:
+
+- React + Vite if migration can be done safely
+  OR
+- Keep the existing HTML/CSS/JavaScript architecture if migration would unnecessarily break the current project.
+
+BACKEND:
+
+- Node.js
+- Express OR Firebase Cloud Functions
+
+DATABASE:
+
+- Firebase Firestore
+
+AUTHENTICATION:
+
+- Firebase Authentication
+- Email/password
+- Google Sign-In
+
+AI:
+
+- Groq API
+
+MAP:
+
+- Leaflet
+- OpenStreetMap-compatible tiles
+
+ROUTING:
+
+- OSRM or another suitable routing service
+
+GEOCODING:
+
+- Nominatim or another suitable geocoding provider
+
+DEPLOYMENT:
+
+- Firebase Hosting or another appropriate production hosting solution.
+
+Use environment variables for ALL secret API keys.
+NEVER put secret API keys directly into frontend JavaScript.
+==================================================
+4. SECURITY REQUIREMENT
+The existing HTML contains a hardcoded-looking GROQ_API_KEY.
+Treat the exposed key as COMPROMISED.
+Do NOT reproduce the key.
+Replace frontend keys with environment-variable references/placeholders.
+The architecture must become:
+Browser
+↓
+Yaatra backend
+↓
+Groq / external APIs
+NOT:
+Browser
+↓
+Groq directly with secret key
+Create a .env.example containing placeholders such as:
+GROQ_API_KEY=
+FIREBASE_PROJECT_ID=
+GOOGLE_VISION_API_KEY=
+TRANSLATION_API_KEY=
+CURRENCY_API_KEY=
+Never commit .env.
+Create/update .gitignore appropriately.
+==================================================
+5. YAATRA AI
+Yaatra AI is the central feature.
+Implement a real backend AI endpoint.
+Example:
+POST /api/ai/chat
+Request:
+{
+"message": "...",
+"history": [],
+"context": {
+"location": "...",
+"destination": "...",
+"budget": 10000,
+"travelers": 2
+}
+}
+The backend should:
+
+1. Validate the request.
+2. Build the system prompt.
+3. Send the request to Groq.
+4. Handle API errors.
+5. Parse the response.
+6. Return structured data where appropriate.
+7. Never expose the Groq API key to the browser.
+
+Use the configured Groq model through an environment variable.
+Do not hardcode the model if it can be configured.
+==================================================
+6. FIX THE CURRENT DEMO MODE BUG
+The current code incorrectly falls back to Demo Mode whenever the Groq request fails.
+The current behavior effectively makes:
+API key missing
+AND
+invalid API key
+AND
+401
+AND
+403
+AND
+429
+AND
+500
+AND
+network failure
+look like the same problem.
+Fix this.
+Implement proper error handling.
+For example:
+if (!response.ok) {
+const errorBody = await response.text();
+console.error("Groq API Error:", response.status, errorBody);
+throw new Error(Groq API request failed: ${response.status});
+}
+Only display:
+"Running in Demo Mode — add GROQ_API_KEY..."
+when the API key is genuinely missing.
+If the key exists but the API fails, display a different useful error.
+Examples:
+401:
+"Yaatra AI authentication failed. Check the Groq API key."
+403:
+"Yaatra AI access was denied."
+429:
+"Yaatra AI rate limit reached. Please try again shortly."
+500:
+"Yaatra AI is temporarily unavailable."
+Network:
+"Unable to connect to Yaatra AI."
+Log detailed technical information to the browser/server console, but don't expose secrets.
+==================================================
+7. STRUCTURED AI OUTPUT
+Do NOT rely only on free-form AI text.
+For itinerary generation, require structured JSON.
+Example:
+{
+"type": "itinerary",
+"destination": "Ooty",
+"days": [
+{
+"day": 1,
+"title": "Arrival and Lake",
+"stops": [
+{
+"time": "09:00",
+"name": "Ooty Lake",
+"description": "...",
+"estimated_cost": 100,
+"duration_minutes": 120
+}
+]
+}
+],
+"budget": {
+"transport": 2500,
+"stay": 3000,
+"food": 1800,
+"activities": 700,
+"miscellaneous": 500,
+"total": 8500
+}
+}
+Use schema validation on the backend.
+If AI returns malformed JSON, retry or safely recover.
+==================================================
+8. AI CAPABILITIES
+Yaatra AI must support:
+A. General travel questions
+"Best places in Ooty?"
+B. Trip planning
+"Plan a 3-day Ooty trip from Coimbatore under ₹10,000."
+C. Budget optimization
+"Make this trip cheaper."
+D. Itinerary editing
+"Remove Day 2 afternoon activity."
+E. Recommendations
+"Find vegetarian restaurants near my hotel."
+F. Travel assistance
+"What should I pack for a 3-day hill station trip?"
+G. Local discovery
+"Find hospitals within 2 km."
+H. Expense analysis
+"I have spent ₹6000 from my ₹10000 budget."
+I. Route suggestions
+"Which places can I visit together to reduce travel time?"
+==================================================
+9. IMPORTANT AI + REAL DATA RULE
+Do NOT let AI hallucinate real businesses.
+For real-world recommendations:
+AI
+↓
+Understand user intent
+↓
+Places API / database
+↓
+Real places
+↓
+AI summarizes/ranks them
+↓
+Frontend displays results
+The AI should not invent restaurants, hospitals, hotels, ratings, prices or addresses.
+Clearly distinguish estimated information from verified/live information.
+==================================================
+10. USER AUTHENTICATION
+Implement:
+
+- Register
+- Login
+- Logout
+- Google Sign-In
+- Forgot password
+- Persistent session
+
+After login, the user should have a profile.
+Store:
+users/{userId}
+Fields:
+
+- name
+- email
+- photoURL
+- homeLocation
+- preferences
+- createdAt
+
+==================================================
+11. USER PREFERENCES
+Allow users to configure:
+
+- Preferred destination types
+- Budget style
+- Food preferences
+- Travel style
+- Preferred transport
+- Accommodation preference
+- Favourite activities
+
+Yaatra AI should use these preferences when generating recommendations.
+==================================================
+12. NEARBY PLACES
+Implement real location-based discovery.
+Categories:
+
+- Restaurants
+- Hotels
+- Attractions
+- Hospitals
+- Pharmacies
+- ATMs
+- Fuel stations
+- Cafés
+- Tourist locations
+- Transport
+
+Support:
+
+- Current location
+- Manual location
+- Search destination
+- Distance filter
+- Price filter
+- Rating filter
+- Category filter
+- Sort by distance
+- Sort by rating
+- Sort by price
+- Open-now where the provider supports it
+
+Display results as:
+LIST + MAP
+Each place card should contain, where available:
+
+- Name
+- Category
+- Rating
+- Distance
+- Address
+- Price
+- Opening status
+- Image
+- Directions button
+- Save/favourite button
+
+==================================================
+13. MAP
+Use Leaflet.
+Show:
+
+- User location
+- Place markers
+- Different marker categories
+- Selected place
+- Route
+- Multiple itinerary stops
+
+Implement:
+Get Directions
+which opens or renders a route between the relevant points.
+==================================================
+14. TRIP PLANNER
+Keep the existing multi-step planner.
+Required fields:
+
+1. Starting location
+2. Destination
+3. Start date
+4. End date
+5. Number of travellers
+6. Budget
+7. Interests
+8. Accommodation
+9. Transport
+
+Interests should include:
+
+- Nature
+- Food
+- Culture
+- Wellness
+- Adventure
+- Shopping
+- History
+- Photography
+
+Then:
+GENERATE ITINERARY
+==================================================
+15. SMART ITINERARY GENERATION
+The itinerary should consider:
+
+- User budget
+- Number of travellers
+- Destination
+- Dates
+- Interests
+- Opening hours
+- Distance
+- Travel time
+- Accommodation
+- Transport
+- Meal times
+- Reasonable daily activity count
+
+Avoid unrealistic itineraries.
+Do not schedule locations that are extremely far apart on the same day without considering travel time.
+==================================================
+16. BUDGET ENGINE
+Create a budget calculation system.
+Categories:
+
+- Transportation
+- Accommodation
+- Food
+- Activities
+- Shopping
+- Miscellaneous
+
+Display:
+Total budget
+Estimated cost
+Spent
+Remaining
+Example:
+Budget: ₹10,000
+Estimated: ₹8,400
+Remaining: ₹1,600
+If estimated cost exceeds budget, warn the user and allow AI optimization.
+==================================================
+17. SAVE TRIPS
+Use Firestore.
+Collection:
+trips
+Each trip should contain:
+
+- userId
+- tripName
+- destination
+- startDate
+- endDate
+- travelers
+- budget
+- interests
+- transport
+- accommodation
+- itinerary
+- budgetBreakdown
+- createdAt
+- updatedAt
+
+Implement:
+
+- Save
+- Open
+- Edit
+- Delete
+- Duplicate
+- Rename
+- Share
+- Download
+
+==================================================
+18. MY TRIPS
+Create a proper dashboard.
+Each trip card:
+Trip name
+Destination
+Dates
+Budget
+Number of days
+Actions:
+View
+Edit
+Delete
+Share
+Download
+Show an empty state when no trips exist.
+==================================================
+19. EXPENSE TRACKER
+Users can add:
+
+- Category
+- Description
+- Amount
+- Date
+- Notes
+
+Categories:
+
+- Accommodation
+- Food
+- Transport
+- Activities
+- Shopping
+- Miscellaneous
+
+Display:
+Budget
+Total spent
+Remaining
+Percentage used
+Show warnings when spending approaches or exceeds budget.
+Also allow Yaatra AI to analyze spending.
+==================================================
+20. TRAVEL CALENDAR
+Display saved trips on a calendar.
+Clicking a trip date should show:
+
+- Destination
+- Planned activities
+- Time
+- Estimated cost
+- Notes
+
+==================================================
+21. CURRENCY CONVERTER
+Implement live currency conversion through a backend/API.
+Support common currencies.
+Show:
+100 USD ≈ ₹____
+Also show:
+1 USD = ₹____
+Handle API failures gracefully.
+Do not expose private API keys.
+==================================================
+22. TRANSLATOR
+Support at least:
+English
+Tamil
+Hindi
+Kannada
+Malayalam
+Use a proper translation API through the backend.
+Keep the existing phrasebook as an offline fallback.
+Do not display Demo Mode unless the live translation service is actually unavailable.
+==================================================
+23. LENS SCANNER
+Allow:
+
+- Camera capture
+- Image upload
+
+Use Vision/OCR API through the backend.
+Detect:
+
+- Text
+- Signs
+- Menus
+- Basic objects where supported
+
+Show detected text.
+Allow:
+Translate this
+button.
+If Vision API is unavailable, clearly indicate fallback mode.
+==================================================
+24. VEHICLE RENTAL
+Create a realistic demo rental system.
+Categories:
+
+- Bike
+- Scooter
+- Hatchback
+- Sedan
+- SUV
+
+Each listing:
+
+- Vehicle name
+- Image
+- Price/day
+- Location
+- Availability
+- Deposit
+- Basic specifications
+
+For this project, booking can remain a simulated/demo booking unless a real rental API is available.
+Clearly label simulated bookings.
+==================================================
+25. EMERGENCY SUPPORT
+Create an emergency section.
+Features:
+
+- Current location
+- Nearby hospitals
+- Nearby police stations
+- Nearby emergency services
+- Emergency contacts
+- Directions
+
+Do not fabricate emergency information.
+Use verified location/service data.
+Provide clear warnings that the app is not a replacement for official emergency services.
+==================================================
+26. FAVOURITES
+Users should be able to save:
+
+- Places
+- Hotels
+- Restaurants
+- Attractions
+
+Store favourites per user in Firestore.
+Allow:
+Save
+Remove
+View favourites
+==================================================
+27. SEARCH
+The global search should understand natural language.
+Examples:
+"cheap biryani near me"
+"hospital within 2 km"
+"best hotels in Ooty"
+"places to visit in Kodaikanal"
+"vegetarian food near me"
+Use AI for intent extraction where useful, then query the appropriate real data source.
+==================================================
+28. ERROR HANDLING
+Every API call must have:
+
+- Loading state
+- Success state
+- Empty state
+- Error state
+- Retry option
+
+Never silently fail.
+Never show a misleading error.
+Never expose API secrets.
+==================================================
+29. OFFLINE / FALLBACK MODE
+Keep Demo Mode as a fallback.
+Demo Mode should use the existing sample directory/data.
+Clearly display:
+Demo Mode
+only when the relevant live service isn't available.
+The application itself must remain usable even if external APIs fail.
+==================================================
+30. PERFORMANCE
+Optimize:
+
+- API calls
+- Images
+- Map loading
+- AI requests
+- Firestore queries
+- Lazy loading
+- Mobile performance
+
+Avoid unnecessary API calls.
+Debounce search/autocomplete.
+Cache suitable read-only data.
+==================================================
+31. RESPONSIVE DESIGN
+The app must work properly on:
+
+- Mobile
+- Tablet
+- Desktop
+
+Test:
+360px
+390px
+768px
+1024px
+1440px
+The existing Yaatra visual design should remain recognizable.
+==================================================
+32. ACCESSIBILITY
+Add:
+
+- Proper labels
+- Keyboard navigation
+- Focus states
+- ARIA labels where appropriate
+- Accessible buttons
+- Sufficient contrast
+- Reduced-motion support
+
+==================================================
+33. PWA
+If practical, make Yaatra installable as a PWA.
+Add:
+
+- manifest.json
+- service worker
+- app icons
+- offline fallback
+
+==================================================
+34. PROJECT STRUCTURE
+Organize the project cleanly.
+Suggested structure:
+yaatra/
+│
+├── frontend/
+│ ├── index.html
+│ ├── css/
+│ ├── js/
+│ ├── components/
+│ └── assets/
+│
+├── functions/
+│ ├── index.js
+│ ├── ai.js
+│ ├── places.js
+│ ├── translation.js
+│ ├── currency.js
+│ └── vision.js
+│
+├── firestore.rules
+├── firestore.indexes.json
+├── firebase.json
+├── .env.example
+├── .gitignore
+├── package.json
+└── README.md
+If the current project can be kept as vanilla HTML/JS without sacrificing functionality, that is acceptable. Do not migrate to React just for the sake of using React.
+==================================================
+35. DATABASE SECURITY
+Write proper Firestore security rules.
+Users must only be able to:
+READ their own private trips
+WRITE their own trips
+READ their own expenses
+WRITE their own expenses
+READ their own favourites
+WRITE their own favourites
+READ/update their own profile
+Never allow unrestricted public writes.
+==================================================
+36. API SECURITY
+Backend must:
+
+- Validate requests
+- Rate-limit AI endpoints where appropriate
+- Never return API keys
+- Never log API keys
+- Sanitize user input
+- Limit request size
+- Handle malicious prompts safely
+- Use environment variables
+- Return safe error messages
+
+==================================================
+37. README
+Create a complete README containing:
+
+- Project overview
+- Features
+- Architecture
+- Tech stack
+- Folder structure
+- Environment variables
+- Firebase setup
+- Groq setup
+- API setup
+- Local development
+- Deployment
+- Security notes
+- Known limitations
+
+Include exact commands.
+==================================================
+38. ENVIRONMENT VARIABLES
+Create:
+.env.example
+with:
+GROQ_API_KEY=
+GROQ_MODEL=
+GOOGLE_VISION_API_KEY=
+TRANSLATION_API_KEY=
+CURRENCY_API_KEY=
+Firebase configuration should use the appropriate public Firebase client configuration where applicable, while server secrets must remain server-side.
+==================================================
+39. TESTING
+Before considering the project complete, test:
+
+- Login
+- Registration
+- Google login
+- Logout
+- Nearby search
+- Location permission denied
+- Map
+- AI chat
+- Invalid Groq key
+- Missing Groq key
+- Groq 401
+- Groq 429
+- Groq server error
+- Trip generation
+- Budget calculation
+- Save trip
+- Delete trip
+- Edit trip
+- Expenses
+- Currency
+- Translation
+- Scanner
+- Calendar
+- Emergency
+- Mobile layout
+
+Fix errors you encounter.
+==================================================
+40. IMPORTANT IMPLEMENTATION RULE
+Do not create fake functionality that looks real.
+If something cannot be made genuinely live because an external API requires credentials or paid access:
+
+1. Build the integration correctly.
+2. Use environment variables.
+3. Provide a safe fallback.
+4. Clearly mark the fallback as demo/simulated.
+
+Do not silently pretend that fake data is live data.
+==================================================
+41. DEVELOPMENT STRATEGY
+Work in phases:
+PHASE 1:
+Analyze the existing uploaded project.
+PHASE 2:
+Refactor the architecture without destroying the UI.
+PHASE 3:
+Build backend/API layer.
+PHASE 4:
+Fix Groq/Yaatra AI.
+PHASE 5:
+Connect authentication and Firestore.
+PHASE 6:
+Connect real maps/places/location services.
+PHASE 7:
+Implement trip planning and structured AI itinerary generation.
+PHASE 8:
+Implement expenses, calendar and favourites.
+PHASE 9:
+Implement travel tools.
+PHASE 10:
+Implement emergency support.
+PHASE 11:
+Add security, error handling and performance improvements.
+PHASE 12:
+Test everything.
+==================================================
+42. DO NOT STOP AT EXPLANATION
+This is extremely important.
+Do not respond with only:
+"Here's how you can build it."
+Actually build the application.
+Inspect the uploaded file first.
+Create/modify the required project files.
+If you need to make a technology decision, choose the simplest robust architecture and continue.
+Do not repeatedly ask me for confirmation for every small implementation decision.
+Only ask a question if it is genuinely impossible to proceed without information.
+==================================================
+43. FINAL DELIVERABLE
+At the end, provide:
+
+1. Complete project structure.
+2. All changed/created files.
+3. Complete working source code.
+4. .env.example.
+5. Firestore security rules.
+6. Backend API implementation.
+7. Frontend implementation.
+8. README.
+9. Setup commands.
+10. Deployment instructions.
+11. List of required API keys.
+12. List of which features are live and which are fallback/demo.
+13. Testing checklist.
+14. Explanation of the original Demo Mode bug and how it was fixed.
+
+MOST IMPORTANT:
+The finished application should be a coherent, fully functional **Yaatra AI travel companion**, not merely a redesigned static HTML page.
+Preserve the existing Yaatra branding and UI while replacing the prototype logic with real backend services, secure API handling, authentication, database persistence, AI-powered planning, maps, travel tools, expenses and emergency assistance.

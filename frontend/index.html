@@ -1,0 +1,2189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yaatra</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#174C3C">
+  <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore-compat.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    :root { --ivory:#F5F3ED; --sage:#E8F0EA; --forest:#174C3C; --terra:#D9825B; --gold:#E7B65A; --ink:#26332E; --muted:#718078; --line:#DDE3DD; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--ivory); color:var(--ink); font-family:"DM Sans",sans-serif; }
+    .font-editorial { font-family:Fraunces,serif; }
+    .page { display:none; animation:fade .24s ease both; }
+    .page.active { display:block; }
+    .leaflet-container { font-family:"DM Sans",sans-serif; }
+    #nearby-map,#place-map { min-height:480px; width:100%; border-radius:24px; }
+    .map-pin { background:var(--forest); border:3px solid #fff; width:16px; height:16px; border-radius:50%; box-shadow:0 2px 8px #174c3c66; }
+    .map-pin.food { background:var(--terra); } .map-pin.health { background:#5c8d82; } .map-pin.stay { background:var(--gold); }
+    .hide-scroll::-webkit-scrollbar { display:none; }
+    .hide-scroll { scrollbar-width:none; }
+    .toast { transform:translateY(140%); transition:transform .25s ease; }
+    .toast.show { transform:translateY(0); }
+    .skeleton { background:linear-gradient(90deg,#e7e5df 25%,#f4f2ec 50%,#e7e5df 75%); background-size:200% 100%; animation:shimmer 1.4s infinite; }
+    .step-dot.done { background:var(--forest); } .step-dot.current { background:var(--terra); transform:scale(1.16); }
+    .choice input:checked + span { background:var(--forest); color:#fff; border-color:var(--forest); }
+    img { color: transparent; }
+    @keyframes fade { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+    @keyframes shimmer { to{background-position:-200% 0} }
+    @media (prefers-reduced-motion:reduce) { *,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important} }
+    @media(max-width:767px) { body { padding-bottom:82px; } #nearby-map { min-height:330px; } .desktop-nav { display:none; } }
+
+    /* ---------- Yaatra AI mascot ---------- */
+    .mascot-float { animation: mascotFloat 3.4s ease-in-out infinite; }
+    @keyframes mascotFloat { 0%,100%{transform:translateY(0) rotate(-1deg)} 50%{transform:translateY(-7px) rotate(1deg)} }
+    .mascot-blink { animation: mascotBlink 4.6s ease-in-out infinite; transform-origin:center; }
+    @keyframes mascotBlink { 0%,92%,100%{transform:scaleY(1)} 95%{transform:scaleY(.12)} }
+    .mascot-wave { transform-origin:88px 78px; animation: mascotWave 1.8s ease-in-out infinite; }
+    @keyframes mascotWave { 0%,100%{transform:rotate(0deg)} 25%{transform:rotate(-18deg)} 50%{transform:rotate(4deg)} 75%{transform:rotate(-12deg)} }
+    .mascot-think { animation: mascotThink 1.1s ease-in-out infinite; }
+    @keyframes mascotThink { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+    .mascot-bubble-dot { animation: mascotDot 1.2s ease-in-out infinite; }
+    .mascot-bubble-dot:nth-child(2){ animation-delay:.15s } .mascot-bubble-dot:nth-child(3){ animation-delay:.3s }
+    @keyframes mascotDot { 0%,60%,100%{opacity:.3;transform:translateY(0)} 30%{opacity:1;transform:translateY(-3px)} }
+
+    /* ---------- Yaatra AI launcher + panel ---------- */
+    #yaatra-ai-launcher { position:fixed; right:20px; bottom:96px; z-index:60; }
+    @media(min-width:768px){ #yaatra-ai-launcher { bottom:28px; } }
+    .yaatra-launcher-btn { width:64px; height:64px; border-radius:50%; background:linear-gradient(155deg,var(--forest),#0f3327); box-shadow:0 10px 28px #174c3c55, 0 0 0 4px #ffffffb0; display:grid; place-items:center; border:none; cursor:pointer; transition:transform .18s ease, box-shadow .18s ease; }
+    .yaatra-launcher-btn:hover { transform:scale(1.06); box-shadow:0 14px 34px #174c3c66, 0 0 0 4px #ffffffcc; }
+    .yaatra-launcher-btn:active { transform:scale(.96); }
+    .yaatra-ping { position:absolute; inset:-4px; border-radius:50%; border:2px solid var(--gold); opacity:0; animation: yaatraPing 2.6s ease-out infinite; }
+    @keyframes yaatraPing { 0%{opacity:.9; transform:scale(.86)} 80%{opacity:0; transform:scale(1.28)} 100%{opacity:0} }
+
+    #yaatra-ai-panel { position:fixed; right:16px; bottom:170px; left:16px; z-index:65; max-width:420px; margin-left:auto; height:min(640px, 72vh); background:rgba(245,243,237,.88); backdrop-filter:blur(18px) saturate(160%); border:1px solid #ffffffa0; border-radius:28px; box-shadow:0 24px 60px -12px #17332366, 0 0 0 1px #17332310; display:flex; flex-direction:column; overflow:hidden; opacity:0; transform:translateY(16px) scale(.97); pointer-events:none; transition:opacity .22s ease, transform .22s ease; }
+    #yaatra-ai-panel.open { opacity:1; transform:translateY(0) scale(1); pointer-events:auto; }
+    @media(min-width:768px){ #yaatra-ai-panel { bottom:104px; right:28px; left:auto; width:400px; } }
+    @media(max-width:480px){ #yaatra-ai-panel { bottom:88px; height:78vh; } }
+
+    .yaatra-msg-row { display:flex; gap:10px; align-items:flex-end; }
+    .yaatra-msg-row.user { flex-direction:row-reverse; }
+    .yaatra-bubble { max-width:80%; padding:12px 14px; border-radius:18px; font-size:14.5px; line-height:1.45; white-space:pre-wrap; }
+    .yaatra-bubble.ai { background:#fff; border:1px solid var(--line); border-bottom-left-radius:6px; color:var(--ink); }
+    .yaatra-bubble.user { background:var(--forest); color:#fff; border-bottom-right-radius:6px; }
+    .yaatra-chip { border:1px solid var(--line); background:#fff; border-radius:999px; padding:7px 13px; font-size:12.5px; font-weight:600; color:var(--forest); white-space:nowrap; cursor:pointer; transition:.15s; }
+    .yaatra-chip:hover { border-color:var(--terra); background:var(--sage); }
+    .yaatra-card { border:1px solid var(--line); background:#fff; border-radius:16px; padding:14px; margin-top:8px; }
+    .yaatra-card-title { font-family:Fraunces,serif; font-weight:700; color:var(--forest); font-size:16px; }
+    .yaatra-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); background:var(--sage); border-radius:999px; padding:2px 8px; }
+    .yaatra-day-block + .yaatra-day-block { margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); }
+    .mascot-corner { position:absolute; opacity:.95; pointer-events:none; }
+    #yaatra-ai-panel::-webkit-scrollbar, #yaatra-ai-messages::-webkit-scrollbar { width:6px; }
+    #yaatra-ai-messages::-webkit-scrollbar-thumb { background:#17332330; border-radius:6px; }
+
+    /* ---------- Tools suite ---------- */
+    .tool-card { background:#fff; border:1px solid var(--line); border-radius:20px; padding:20px; text-align:left; transition:.15s; }
+    .tool-card:hover { border-color:var(--terra); transform:translateY(-2px); }
+    .demo-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#8a5b10; background:#fff4dc; border-radius:999px; padding:3px 9px; }
+    .live-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:#174C3C; background:var(--sage); border-radius:999px; padding:3px 9px; }
+    .autocomplete-wrap { position:relative; }
+    .autocomplete-list { position:absolute; z-index:30; left:0; right:0; top:calc(100% + 4px); background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 12px 28px -8px #17332333; max-height:240px; overflow-y:auto; }
+    .autocomplete-list button { display:block; width:100%; text-align:left; padding:10px 14px; font-size:14px; border:none; background:none; cursor:pointer; }
+    .autocomplete-list button:hover { background:var(--sage); }
+    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+    .cal-cell { aspect-ratio:1; border-radius:12px; border:1px solid var(--line); background:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:12px; font-weight:600; cursor:pointer; position:relative; }
+    .cal-cell.has-plan { background:var(--sage); border-color:var(--forest); color:var(--forest); }
+    .cal-cell.empty { visibility:hidden; }
+    .cal-cell .dot { width:5px; height:5px; border-radius:50%; background:var(--terra); position:absolute; bottom:4px; }
+    .expense-row { display:flex; justify-content:space-between; align-items:center; gap:3px; padding:10px 0; border-bottom:1px dashed var(--line); }
+    .scan-drop { border:2px dashed var(--line); border-radius:20px; padding:28px; text-align:center; background:var(--sage); }
+    .loader-dots span { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--forest); margin:0 2px; animation:mascotDot 1.2s ease-in-out infinite; }
+    .loader-dots span:nth-child(2){ animation-delay:.15s } .loader-dots span:nth-child(3){ animation-delay:.3s }
+    .route-banner { background:var(--sage); border:1px solid var(--forest); border-radius:16px; padding:12px 16px; }
+    .img-placeholder { position:relative; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg,var(--sage),#DDE3DD); color:var(--forest); }
+    .img-placeholder i { opacity:.55; }
+    .img-placeholder img { position:absolute; inset:0; }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+   <header class="sticky top-0 z-40 border-b border-[#DDE3DD] bg-[#F5F3ED]/95 backdrop-blur">
+    <div class="w-full max-w-7xl mx-auto px-5 h-18 min-h-[72px] flex items-center justify-between gap-5">
+     <button type="button" class="flex items-center gap-2 text-left" onclick="showView('home')">
+      <span class="w-9 h-9 rounded-full bg-[#174C3C] text-white grid place-items-center"><i data-lucide="compass" class="w-5 h-5"></i></span>
+      <span class="font-editorial text-2xl font-bold text-[#174C3C]">Yaatra</span>
+     </button>
+     <nav class="desktop-nav flex items-center gap-1" aria-label="Main navigation">
+      <button class="px-3 py-2 rounded-lg hover:bg-[#E8F0EA] font-semibold" type="button" onclick="showView('home')">Home</button>
+      <button class="px-3 py-2 rounded-lg hover:bg-[#E8F0EA] font-semibold" type="button" onclick="showView('nearby')">Explore</button>
+      <button class="px-3 py-2 rounded-lg hover:bg-[#E8F0EA] font-semibold" type="button" onclick="openPlanner()">Plan a trip</button>
+      <button class="px-3 py-2 rounded-lg hover:bg-[#E8F0EA] font-semibold" type="button" onclick="showView('trips')">My trips</button>
+      <button class="px-3 py-2 rounded-lg hover:bg-[#E8F0EA] font-semibold" type="button" onclick="showView('tools')">Tools</button>
+      <button class="px-3 py-2 rounded-lg hover:bg-[#E8F0EA] font-semibold" type="button" onclick="showView('profile')">Profile</button>
+     </nav>
+     <button id="location-pill" class="hidden sm:flex items-center gap-2 rounded-full px-4 py-2 bg-[#E8F0EA] text-[#174C3C] font-semibold" type="button" onclick="locateUser()">
+      <i data-lucide="map-pin" class="w-4 h-4"></i><span id="location-pill-text">Coimbatore</span>
+     </button>
+    </div>
+   </header>
+   <main>
+    <section id="home" class="page active">
+     <div class="w-full max-w-7xl mx-auto px-5 pt-7 pb-14">
+      <section class="relative min-h-[430px] overflow-hidden rounded-[32px] bg-[#174C3C] flex items-end p-6 md:p-12">
+       <img id="hero-image" class="absolute inset-0 w-full h-full object-cover opacity-75" loading="lazy" alt="Misty hills at sunrise">
+       <div class="absolute inset-0 bg-gradient-to-r from-[#174C3C]/90 via-[#174C3C]/60 to-transparent"></div>
+       <div class="mascot-corner mascot-float hidden sm:block" style="top:22px;right:26px;" data-mascot="wave" data-mascot-size="76"></div>
+       <div class="relative z-10 max-w-2xl text-white">
+        <p class="mb-3 text-sm uppercase tracking-[.18em] font-semibold text-[#E7B65A]">Plan your next escape</p>
+        <h1 class="font-editorial text-4xl md:text-6xl leading-tight font-bold">Discover. Plan. Explore.</h1>
+        <p class="mt-4 max-w-xl text-white/85 text-lg">Find nearby food, stays, and sights in seconds, then let Yaatra build a day-by-day itinerary that fits your budget.</p>
+        <form id="hero-search-form" class="mt-7 flex flex-col sm:flex-row gap-3" onsubmit="handleSearch(event)">
+         <label class="sr-only" for="hero-search">Travel search</label>
+         <div class="relative flex-1">
+          <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#718078]"></i>
+          <input id="hero-search" class="w-full rounded-xl border-0 px-12 py-4 text-[#26332E] outline-none ring-2 ring-transparent focus:ring-[#E7B65A]" type="search" placeholder="Try 'hospital within 2km'">
+         </div>
+         <button class="rounded-xl px-6 py-4 font-semibold bg-[#D9825B] text-white hover:brightness-95" type="submit">Search</button>
+        </form>
+        <div class="mt-4 flex flex-wrap gap-2">
+         <button class="rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20" type="button" onclick="quickSearch('cheapest biryani near me')">Cheapest biryani near me</button>
+         <button class="rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20" type="button" onclick="quickSearch('hospital within 2km')">Hospital within 2km</button>
+         <button class="rounded-full border border-white/30 bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20" type="button" onclick="quickSearch('top rated hotels')">Top rated hotels</button>
+        </div>
+       </div>
+      </section>
+      <section class="mt-6 rounded-[28px] border border-[#DDE3DD] bg-white p-5 md:p-6" aria-labelledby="weather-heading">
+       <div class="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+        <div><p class="text-sm font-bold tracking-[.14em] uppercase text-[#D9825B]">Live conditions</p><h2 id="weather-heading" class="font-editorial text-3xl text-[#174C3C]">Weather for your journey</h2><p id="weather-status" class="mt-1 text-sm text-[#718078]" aria-live="polite">Loading current conditions…</p></div>
+        <form class="flex gap-2" onsubmit="searchWeather(event)"><label class="sr-only" for="weather-query">Search destination weather</label><input id="weather-query" class="min-w-0 w-48 rounded-xl border border-[#DDE3DD] px-3 py-2.5 text-sm" placeholder="Search a destination"><button class="rounded-xl bg-[#174C3C] px-4 py-2.5 text-sm font-semibold text-white" type="submit">Search</button></form>
+       </div>
+       <div id="weather-current" class="mt-5 grid md:grid-cols-[auto_1fr] gap-4 items-center"></div>
+       <div id="weather-forecast" class="mt-5 grid grid-cols-2 sm:grid-cols-5 gap-3"></div>
+      </section>
+      <section class="mt-12">
+       <div class="flex items-end justify-between gap-4">
+        <div>
+         <p class="text-sm font-bold tracking-[.14em] uppercase text-[#D9825B]">Handpicked for you</p>
+         <h2 class="font-editorial text-3xl text-[#174C3C]">Popular escapes</h2>
+        </div>
+        <button class="text-sm font-semibold text-[#174C3C] underline underline-offset-4" type="button" onclick="showView('nearby')">View all</button>
+       </div>
+       <div class="hide-scroll mt-5 flex gap-4 overflow-x-auto pb-2" id="destination-strip"></div>
+      </section>
+      <section class="mt-12">
+       <p class="text-sm font-bold tracking-[.14em] uppercase text-[#D9825B]">Browse by category</p>
+       <h2 class="font-editorial text-3xl text-[#174C3C]">What are you looking for?</h2>
+       <div class="mt-5 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <button class="min-h-[120px] rounded-2xl p-5 text-left bg-white border border-[#DDE3DD] hover:border-[#D9825B] relative overflow-hidden" type="button" onclick="quickSearch('food near me')"><div class="absolute -right-2 -top-2 opacity-90" data-mascot="food" data-mascot-size="46"></div><i data-lucide="utensils" class="mb-5 text-[#D9825B]"></i><span class="block font-bold">Food</span></button>
+        <button class="min-h-[120px] rounded-2xl p-5 text-left bg-white border border-[#DDE3DD] hover:border-[#D9825B] relative overflow-hidden" type="button" onclick="quickSearch('hotels near me')"><div class="absolute -right-2 -top-2 opacity-90" data-mascot="suitcase" data-mascot-size="46"></div><i data-lucide="bed-double" class="mb-5 text-[#D9825B]"></i><span class="block font-bold">Hotels</span></button>
+        <button class="min-h-[120px] rounded-2xl p-5 text-left bg-white border border-[#DDE3DD] hover:border-[#D9825B] relative overflow-hidden" type="button" onclick="quickSearch('attractions near me')"><div class="absolute -right-2 -top-2 opacity-90" data-mascot="point" data-mascot-size="46"></div><i data-lucide="landmark" class="mb-5 text-[#D9825B]"></i><span class="block font-bold">Attractions</span></button>
+        <button class="min-h-[120px] rounded-2xl p-5 text-left bg-white border border-[#DDE3DD] hover:border-[#D9825B] relative overflow-hidden" type="button" onclick="quickSearch('hospital within 2km')"><div class="absolute -right-2 -top-2 opacity-90" data-mascot="alert" data-mascot-size="46"></div><i data-lucide="cross" class="mb-5 text-[#D9825B]"></i><span class="block font-bold">Health</span></button>
+       </div>
+      </section>
+      <section class="mt-12">
+       <p class="text-sm font-bold tracking-[.14em] uppercase text-[#D9825B]">Travel toolkit</p>
+       <h2 class="font-editorial text-3xl text-[#174C3C]">Everything else you need</h2>
+       <div class="mt-5 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <button class="tool-card" type="button" onclick="showView('currency')"><i data-lucide="banknote" class="mb-3 text-[#174C3C]"></i><span class="block font-bold">Currency</span><span class="block text-xs text-[#718078] mt-1">Convert on the go</span></button>
+        <button class="tool-card" type="button" onclick="showView('translator')"><i data-lucide="languages" class="mb-3 text-[#174C3C]"></i><span class="block font-bold">Translator</span><span class="block text-xs text-[#718078] mt-1">Speak the local phrase</span></button>
+        <button class="tool-card" type="button" onclick="showView('scanner')"><i data-lucide="scan-line" class="mb-3 text-[#174C3C]"></i><span class="block font-bold">Lens scanner</span><span class="block text-xs text-[#718078] mt-1">Scan signs & menus</span></button>
+        <button class="tool-card" type="button" onclick="showView('emergency')"><i data-lucide="siren" class="mb-3 text-[#D9825B]"></i><span class="block font-bold">Emergency</span><span class="block text-xs text-[#718078] mt-1">Help, fast</span></button>
+       </div>
+      </section>
+     </div>
+    </section>
+
+    <section id="nearby" class="page">
+     <div class="w-full max-w-7xl mx-auto px-5 py-7">
+      <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+       <div class="flex items-center gap-3">
+        <div class="mascot-float shrink-0" data-mascot="binoculars" data-mascot-size="58"></div>
+        <div>
+         <p class="text-sm font-bold tracking-[.14em] uppercase text-[#D9825B]">Around you</p>
+         <h1 class="font-editorial text-4xl text-[#174C3C]">Nearby places</h1>
+        </div>
+       </div>
+       <div class="flex gap-2">
+        <button class="flex items-center gap-2 rounded-xl border border-[#DDE3DD] bg-white px-4 py-3 font-semibold" type="button" onclick="toggleFilters()"><i data-lucide="sliders-horizontal" class="w-4 h-4"></i>Filters</button>
+        <button class="flex items-center gap-2 rounded-xl bg-[#174C3C] px-4 py-3 text-white font-semibold" type="button" onclick="locateUser()"><i data-lucide="crosshair" class="w-4 h-4"></i>Locate me</button>
+       </div>
+      </div>
+      <div id="filter-panel" class="hidden mt-5 rounded-2xl border border-[#DDE3DD] bg-white p-5">
+       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div><label class="text-sm font-semibold" for="distance-filter">Distance</label><select id="distance-filter" class="mt-1 w-full rounded-lg border border-[#DDE3DD] px-3 py-2" onchange="applyFilters()"><option value="all">Any distance</option><option value="2">Within 2 km</option><option value="5">Within 5 km</option></select></div>
+        <div><label class="text-sm font-semibold" for="price-filter">Price</label><select id="price-filter" class="mt-1 w-full rounded-lg border border-[#DDE3DD] px-3 py-2" onchange="applyFilters()"><option value="all">Any price</option><option value="100">Under ₹100</option><option value="500">Under ₹500</option></select></div>
+        <div><label class="text-sm font-semibold" for="sort-filter">Sort by</label><select id="sort-filter" class="mt-1 w-full rounded-lg border border-[#DDE3DD] px-3 py-2" onchange="applyFilters()"><option value="nearest">Nearest</option><option value="price">Cheapest</option><option value="rating">Top rated</option></select></div>
+       </div>
+      </div>
+      <div class="mt-6 grid lg:grid-cols-5 gap-5">
+       <aside class="lg:col-span-2 rounded-3xl border border-[#DDE3DD] bg-white p-4 max-h-[580px] overflow-y-auto">
+        <div id="results-summary" class="mb-3 text-sm text-[#718078]" aria-live="polite"></div>
+        <div id="nearby-list" class="space-y-3"></div>
+        <div id="empty-results" class="hidden py-12 text-center">
+         <i data-lucide="map-pin-off" class="mx-auto mb-3 text-[#718078]"></i>
+         <p class="text-[#718078]">No places match these filters yet. Try widening your search.</p>
+        </div>
+       </aside>
+       <div class="lg:col-span-3 relative">
+        <div id="nearby-map"></div>
+        <div id="map-fallback" class="hidden absolute inset-0 grid place-items-center rounded-3xl bg-[#E8F0EA] p-8 text-center">
+         <div><i data-lucide="map-pin-off" class="mx-auto mb-3 text-[#174C3C]"></i>
+          <p class="text-[#174C3C]">The map couldn't load. Your results are still listed on the left.</p>
+         </div>
+        </div>
+       </div>
+      </div>
+     </div>
+    </section>
+
+    <section id="place" class="page">
+     <div class="w-full max-w-5xl mx-auto px-5 py-8">
+      <button class="mb-5 flex items-center gap-2 text-sm font-semibold text-[#174C3C]" type="button" onclick="showView('nearby')"><i data-lucide="arrow-left" class="w-4 h-4"></i>Back to nearby</button>
+      <article class="overflow-hidden rounded-[28px] bg-white border border-[#DDE3DD]">
+       <span class="img-placeholder h-72 w-full block">
+        <img id="place-image" class="h-72 w-full object-cover hidden" alt="" onload="this.classList.remove('hidden')">
+        <i data-lucide="image" class="w-8 h-8"></i>
+       </span>
+       <div class="p-6 md:p-9">
+        <div class="flex flex-col sm:flex-row justify-between gap-4">
+         <div class="flex items-start gap-3">
+          <div class="mascot-float shrink-0 hidden sm:block" data-mascot="point" data-mascot-size="52"></div>
+          <div>
+           <p id="place-type" class="text-sm font-bold uppercase tracking-wider text-[#D9825B]"></p>
+           <h1 id="place-title" class="font-editorial text-4xl text-[#174C3C]"></h1>
+           <p id="place-meta" class="mt-2 text-[#718078]"></p>
+          </div>
+         </div>
+         <span id="place-rating" class="h-fit rounded-full bg-[#E8F0EA] px-4 py-2 font-bold text-[#174C3C]"></span>
+        </div>
+        <p id="place-description" class="mt-6 max-w-2xl leading-7 text-[#718078]"></p>
+        <div class="mt-7 grid md:grid-cols-2 gap-5">
+         <div id="place-map"></div>
+         <div class="rounded-2xl bg-[#F5F3ED] p-6">
+          <h2 class="font-editorial text-2xl text-[#174C3C]">Also nearby</h2>
+          <div id="place-nearby-links" class="mt-4 space-y-3"></div>
+         </div>
+        </div>
+        <div class="mt-7 flex flex-wrap gap-3">
+         <button id="place-favorite-button" class="rounded-xl border border-[#174C3C] px-5 py-3 text-[#174C3C] font-semibold" type="button" onclick="toggleFavoriteCurrent()">Save favourite</button>
+         <button class="rounded-xl bg-[#174C3C] px-5 py-3 text-white font-semibold" type="button" onclick="navigatePlace()">Get directions</button>
+         <button class="rounded-xl border border-[#174C3C] px-5 py-3 text-[#174C3C] font-semibold" type="button" onclick="openPlanner()">Add to a trip</button>
+        </div>
+       </div>
+      </article>
+     </div>
+    </section>
+
+    <section id="planner" class="page">
+     <div class="w-full max-w-3xl mx-auto px-5 py-8">
+      <div class="flex items-end justify-between">
+       <div class="flex items-center gap-3">
+        <div class="mascot-float shrink-0" data-mascot="map" data-mascot-size="58"></div>
+        <div>
+         <p class="text-sm font-bold tracking-[.14em] uppercase text-[#D9825B]">Trip planner</p>
+         <h1 class="font-editorial text-4xl text-[#174C3C]">Build your itinerary</h1>
+        </div>
+       </div>
+       <span id="planner-count" class="text-sm text-[#718078]"></span>
+      </div>
+      <div class="mt-4 flex justify-end">
+       <button type="button" class="inline-flex items-center gap-2 rounded-xl border border-[#174C3C]/30 bg-[#E8F0EA] px-4 py-2.5 text-sm font-semibold text-[#174C3C]" onclick="askYaatraToPlan()">
+        <i data-lucide="sparkles" class="w-4 h-4"></i> Or just tell Yaatra AI what you want
+       </button>
+      </div>
+      <div id="stepper" class="mt-7 flex justify-between gap-1"></div>
+      <form id="planner-form" class="mt-6 rounded-3xl border border-[#DDE3DD] bg-white p-6 md:p-9" onsubmit="plannerNext(event)">
+       <div class="planner-step" data-step="1">
+        <h2 class="font-editorial text-2xl text-[#174C3C]">Where are you starting from?</h2>
+        <label class="mt-6 block font-semibold" for="trip-start">Starting point</label>
+        <input id="trip-start" class="mt-2 w-full rounded-xl border border-[#DDE3DD] px-4 py-3" required value="Coimbatore">
+       </div>
+       <div class="planner-step hidden" data-step="2">
+        <h2 class="font-editorial text-2xl text-[#174C3C]">Where would you like to go?</h2>
+        <label class="mt-6 block font-semibold" for="trip-destination">Destination</label>
+        <select id="trip-destination" class="mt-2 w-full rounded-xl border border-[#DDE3DD] px-4 py-3" required><option>Ooty</option><option>Kodaikanal</option><option>Coorg</option><option>Munnar</option><option>Goa</option></select>
+       </div>
+       <div class="planner-step hidden" data-step="3">
+        <h2 class="font-editorial text-2xl text-[#174C3C]">When are you travelling?</h2>
+        <div class="mt-6 grid sm:grid-cols-2 gap-4">
+         <div><label class="block font-semibold" for="trip-start-date">Start date</label><input id="trip-start-date" class="mt-2 w-full rounded-xl border border-[#DDE3DD] px-4 py-3" type="date" required></div>
+         <div><label class="block font-semibold" for="trip-end-date">End date</label><input id="trip-end-date" class="mt-2 w-full rounded-xl border border-[#DDE3DD] px-4 py-3" type="date" required></div>
+        </div>
+       </div>
+       <div class="planner-step hidden" data-step="4">
+        <h2 class="font-editorial text-2xl text-[#174C3C]">How many travellers?</h2>
+        <label class="mt-6 block font-semibold" for="trip-travelers">Travellers</label>
+        <input id="trip-travelers" class="mt-2 w-full rounded-xl border border-[#DDE3DD] px-4 py-3" type="number" min="1" max="12" value="2" required>
+       </div>
+       <div class="planner-step hidden" data-step="5">
+        <h2 class="font-editorial text-2xl text-[#174C3C]">What's your budget?</h2>
+        <label class="mt-6 block font-semibold" for="trip-budget">Total budget (₹)</label>
+        <input id="trip-budget" class="mt-2 w-full rounded-xl border border-[#DDE3DD] px-4 py-3" type="number" min="1000" value="15000" required oninput="budgetHint()">
+        <p id="budget-warning" class="hidden mt-3 rounded-xl bg-[#fff4dc] p-3 text-sm text-[#8a5b10]"></p>
+       </div>
+       <div class="planner-step hidden" data-step="6">
+        <h2 class="font-editorial text-2xl text-[#174C3C]">What are you most excited about?</h2>
+        <p class="mt-2 text-[#718078]">Pick as many as you like — this shapes your daily stops.</p>
+        <div class="mt-6 grid grid-cols-2 gap-3">
+         <label class="choice"><input class="sr-only interest" type="checkbox" value="Nature" checked><span class="block cursor-pointer rounded-xl border border-[#DDE3DD] p-4 text-center">Nature</span></label>
+         <label class="choice"><input class="sr-only interest" type="checkbox" value="Food"><span class="block cursor-pointer rounded-xl border border-[#DDE3DD] p-4 text-center">Food</span></label>
+         <label class="choice"><input class="sr-only interest" type="checkbox" value="Culture"><span class="block cursor-pointer rounded-xl border border-[#DDE3DD] p-4 text-center">Culture</span></label>
+         <label class="choice"><input class="sr-only interest" type="checkbox" value="Wellness"><span class="block cursor-pointer rounded-xl border border-[#DDE3DD] p-4 text-center">Wellness</span></label>
+        </div>
+       </div>
+       <div class="planner-step hidden" data-step="7">
+        <h2 class="font-editorial text-2xl text-[#174C3C]">Where should you stay?</h2>
+        <select id="trip-stay" class="mt-6 w-full rounded-xl border border-[#DDE3DD] px-4 py-3"><option value="Comfort">Comfort boutique stay</option><option value="Budget">Budget-friendly stay</option><option value="Premium">Premium resort</option></select>
+       </div>
+       <div class="planner-step hidden" data-step="8">
+        <h2 class="font-editorial text-2xl text-[#174C3C]">How will you get around?</h2>
+        <select id="trip-transport" class="mt-6 w-full rounded-xl border border-[#DDE3DD] px-4 py-3"><option value="Car">Private car</option><option value="Train">Train + local cab</option><option value="Bus">Bus + local cab</option></select>
+       </div>
+       <p id="form-error" class="hidden mt-5 text-sm text-[#b44a36]" aria-live="polite"></p>
+       <div class="mt-8 flex justify-between gap-3">
+        <button id="planner-back" class="invisible rounded-xl border border-[#DDE3DD] px-5 py-3 font-semibold" type="button" onclick="plannerBack()">Back</button>
+        <button id="planner-next" class="rounded-xl bg-[#174C3C] px-5 py-3 text-white font-semibold" type="submit">Continue</button>
+       </div>
+      </form>
+     </div>
+    </section>
+
+    <section id="result" class="page">
+     <div class="w-full max-w-5xl mx-auto px-5 py-8">
+      <div id="generation-state" class="rounded-[28px] bg-[#174C3C] px-7 py-20 text-center text-white">
+       <i data-lucide="sparkles" class="mx-auto mb-5 h-10 w-10 text-[#E7B65A]"></i>
+       <h1 class="font-editorial text-4xl">Building your itinerary</h1>
+       <p class="mt-3 text-white/75">Matching your interests and budget to the best stops in town.</p>
+       <div class="mx-auto mt-7 h-2 max-w-sm overflow-hidden rounded-full bg-white/20">
+        <div id="generation-bar" class="h-full w-0 bg-[#E7B65A] transition-all duration-700"></div>
+       </div>
+      </div>
+      <div id="itinerary-content" class="hidden">
+       <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+         <p class="text-sm font-bold tracking-[.14em] uppercase text-[#D9825B]">Your itinerary</p>
+         <h1 id="result-title" class="font-editorial text-4xl text-[#174C3C]"></h1>
+         <p id="result-meta" class="mt-2 text-[#718078]"></p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+         <button id="save-trip" class="rounded-xl bg-[#174C3C] px-4 py-3 text-white font-semibold" type="button" onclick="saveTrip()">Save trip</button>
+         <button class="rounded-xl border border-[#174C3C] px-4 py-3 text-[#174C3C] font-semibold" type="button" onclick="downloadTrip()">Download</button>
+         <button class="rounded-xl border border-[#174C3C] px-4 py-3 text-[#174C3C] font-semibold" type="button" onclick="showView('expenses')">Track expenses</button>
+         <button class="rounded-xl border border-[#174C3C] px-4 py-3 text-[#174C3C] font-semibold" type="button" onclick="showView('vehicles')">Rent a vehicle</button>
+        </div>
+       </div>
+       <div class="mt-7 grid lg:grid-cols-3 gap-5">
+        <section class="lg:col-span-2 rounded-3xl bg-white border border-[#DDE3DD] p-6">
+         <h2 class="font-editorial text-2xl text-[#174C3C]">Day by day</h2>
+         <div id="itinerary-days" class="mt-6 space-y-6"></div>
+        </section>
+        <aside class="rounded-3xl bg-[#E8F0EA] p-6 relative overflow-hidden">
+         <div class="mascot-float absolute" style="top:10px;right:10px;" data-mascot="calculator" data-mascot-size="48"></div>
+         <h2 class="font-editorial text-2xl text-[#174C3C]">Budget breakdown</h2>
+         <p id="budget-total" class="mt-4 text-3xl font-bold text-[#174C3C]"></p>
+         <div id="budget-bars" class="mt-6 space-y-4"></div>
+         <button class="mt-7 w-full rounded-xl border border-[#174C3C] px-4 py-3 text-[#174C3C] font-semibold" type="button" onclick="showView('nearby')">View on map</button>
+        </aside>
+       </div>
+      </div>
+     </div>
+    </section>
+
+    <section id="trips" class="page">
+     <div class="w-full max-w-6xl mx-auto px-5 py-8">
+      <div class="flex items-end justify-between">
+       <div class="flex items-center gap-3">
+        <div class="mascot-float shrink-0" data-mascot="suitcase" data-mascot-size="58"></div>
+        <div>
+         <p class="text-sm font-bold tracking-[.14em] uppercase text-[#D9825B]">Saved</p>
+         <h1 class="font-editorial text-4xl text-[#174C3C]">My trips</h1>
+        </div>
+       </div>
+       <button class="rounded-xl bg-[#174C3C] px-4 py-3 text-white font-semibold" type="button" onclick="openPlanner()">New trip</button>
+      </div>
+      <div id="trip-list" class="mt-7 grid md:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+      <div id="trips-empty" class="hidden mt-8 rounded-3xl border border-dashed border-[#DDE3DD] bg-white p-12 text-center">
+       <i data-lucide="map" class="mx-auto mb-4 text-[#D9825B]"></i>
+       <h2 class="font-editorial text-2xl text-[#174C3C]">No trips saved yet</h2>
+       <p class="mt-2 text-[#718078]">Plan a trip and save it here so you can come back to it anytime.</p>
+      </div>
+     </div>
+    </section>
+
+    <section id="profile" class="page">
+     <div class="w-full max-w-3xl mx-auto px-5 py-8">
+      <p class="text-sm font-bold tracking-[.14em] uppercase text-[#D9825B]">Account</p>
+      <h1 class="font-editorial text-4xl text-[#174C3C]">Your profile</h1>
+      <section class="mt-7 rounded-3xl border border-[#DDE3DD] bg-white p-7">
+       <div class="flex items-center gap-4">
+        <div class="grid h-14 w-14 place-items-center rounded-full bg-[#E8F0EA] text-xl font-bold text-[#174C3C]">Y</div>
+        <div>
+         <h2 class="text-xl font-bold">Traveller</h2>
+         <p class="text-[#718078]">Welcome back to Yaatra.</p>
+        </div>
+       </div>
+       <div class="mt-7 border-t border-[#DDE3DD] pt-6">
+        <h2 class="font-editorial text-xl text-[#174C3C]">Starting location</h2>
+        <p id="profile-location" class="mt-2 text-[#718078]">Using Coimbatore as your starting point.</p>
+        <button class="mt-4 rounded-xl bg-[#E8F0EA] px-4 py-3 text-[#174C3C] font-semibold" type="button" onclick="locateUser()">Use my live location</button>
+       </div>
+       <div class="mt-7 border-t border-[#DDE3DD] pt-6">
+        <div class="flex items-center justify-between gap-3"><h2 class="font-editorial text-xl text-[#174C3C]">Yaatra account</h2><span id="auth-status" class="text-sm text-[#718078]" aria-live="polite">Guest mode</span></div>
+        <div id="auth-guest-panel" class="mt-4 grid sm:grid-cols-2 gap-3">
+         <input id="auth-name" class="rounded-xl border border-[#DDE3DD] px-3 py-2.5" placeholder="Name (for registration)">
+         <input id="auth-email" class="rounded-xl border border-[#DDE3DD] px-3 py-2.5" type="email" placeholder="Email" required>
+         <input id="auth-password" class="rounded-xl border border-[#DDE3DD] px-3 py-2.5" type="password" placeholder="Password" minlength="6" required>
+         <div class="flex flex-wrap gap-2"><button type="button" class="rounded-xl bg-[#174C3C] px-4 py-2.5 text-sm font-semibold text-white" onclick="authRegister()">Register</button><button type="button" class="rounded-xl border border-[#174C3C] px-4 py-2.5 text-sm font-semibold text-[#174C3C]" onclick="authLogin()">Login</button></div>
+         <button type="button" class="rounded-xl border border-[#DDE3DD] px-4 py-2.5 text-sm font-semibold" onclick="authGoogle()">Continue with Google</button><button type="button" class="text-left text-sm font-semibold text-[#174C3C] underline" onclick="authResetPassword()">Forgot password?</button>
+         <p id="auth-error" class="sm:col-span-2 hidden rounded-xl bg-[#fdeceb] p-3 text-sm text-[#b44a36]" aria-live="polite"></p>
+        </div>
+        <div id="auth-user-panel" class="hidden mt-4 flex flex-wrap items-center justify-between gap-3"><p id="auth-user-details" class="text-sm text-[#718078]"></p><button type="button" class="rounded-xl bg-[#E8F0EA] px-4 py-2.5 text-sm font-semibold text-[#174C3C]" onclick="authLogout()">Logout</button></div>
+       </div>
+       <div class="mt-7 border-t border-[#DDE3DD] pt-6"><div class="flex items-center justify-between gap-3"><h2 class="font-editorial text-xl text-[#174C3C]">Saved favourites</h2><button type="button" class="text-sm font-semibold text-[#174C3C] underline" onclick="renderFavorites()">Refresh</button></div><div id="favorites-list" class="mt-4 space-y-3"></div></div>
+      </section>
+     </div>
+    </section>
+
+    <!-- ============ TOOLS HUB ============ -->
+    <section id="tools" class="page">
+     <div class="w-full max-w-6xl mx-auto px-5 py-8">
+      <div class="flex items-center gap-3">
+       <div class="mascot-float shrink-0" data-mascot="calculator" data-mascot-size="58"></div>
+       <div>
+        <p class="text-sm font-bold tracking-[.14em] uppercase text-[#D9825B]">Travel toolkit</p>
+        <h1 class="font-editorial text-4xl text-[#174C3C]">Tools</h1>
+       </div>
+      </div>
+      <div class="mt-7 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+       <button class="tool-card" type="button" onclick="showView('currency')"><i data-lucide="banknote" class="mb-3 text-[#174C3C]"></i><span class="block font-bold">Currency converter</span><span class="block text-xs text-[#718078] mt-1">Live exchange rates</span></button>
+       <button class="tool-card" type="button" onclick="showView('translator')"><i data-lucide="languages" class="mb-3 text-[#174C3C]"></i><span class="block font-bold">Travel translator</span><span class="block text-xs text-[#718078] mt-1">Common phrases, any language</span></button>
+       <button class="tool-card" type="button" onclick="showView('scanner')"><i data-lucide="scan-line" class="mb-3 text-[#174C3C]"></i><span class="block font-bold">Lens scanner</span><span class="block text-xs text-[#718078] mt-1">OCR & object detection</span></button>
+       <button class="tool-card" type="button" onclick="showView('calendar')"><i data-lucide="calendar-days" class="mb-3 text-[#174C3C]"></i><span class="block font-bold">Travel calendar</span><span class="block text-xs text-[#718078] mt-1">Your itinerary, by date</span></button>
+       <button class="tool-card" type="button" onclick="showView('vehicles')"><i data-lucide="car" class="mb-3 text-[#174C3C]"></i><span class="block font-bold">Vehicle rental</span><span class="block text-xs text-[#718078] mt-1">Bikes, cars & SUVs</span></button>
+       <button class="tool-card" type="button" onclick="showView('expenses')"><i data-lucide="wallet" class="mb-3 text-[#174C3C]"></i><span class="block font-bold">Expense tracker</span><span class="block text-xs text-[#718078] mt-1">Linked to your trip budget</span></button>
+       <button class="tool-card" type="button" onclick="quickSearch('hotels near me')"><i data-lucide="bed-double" class="mb-3 text-[#174C3C]"></i><span class="block font-bold">Nearby stays</span><span class="block text-xs text-[#718078] mt-1">Hotels around you</span></button>
+       <button class="tool-card" type="button" onclick="showView('emergency')"><i data-lucide="siren" class="mb-3 text-[#D9825B]"></i><span class="block font-bold">Emergency support</span><span class="block text-xs text-[#718078] mt-1">Hospitals & SOS</span></button>
+      </div>
+     </div>
+    </section>
+
+    <!-- ============ CURRENCY CONVERTER ============ -->
+    <section id="currency" class="page">
+     <div class="w-full max-w-2xl mx-auto px-5 py-8">
+      <button class="mb-5 flex items-center gap-2 text-sm font-semibold text-[#174C3C]" type="button" onclick="showView('tools')"><i data-lucide="arrow-left" class="w-4 h-4"></i>Back to tools</button>
+      <div class="flex items-center gap-3">
+       <div class="mascot-float shrink-0" data-mascot="calculator" data-mascot-size="52"></div>
+       <div><h1 class="font-editorial text-4xl text-[#174C3C]">Currency converter</h1><p id="currency-status" class="mt-1 text-sm"></p></div>
+      </div>
+      <form id="currency-form" class="mt-7 rounded-3xl border border-[#DDE3DD] bg-white p-6 md:p-8" onsubmit="convertCurrency(event)">
+       <label class="block font-semibold" for="cur-amount">Amount</label>
+       <input id="cur-amount" class="mt-2 w-full rounded-xl border border-[#DDE3DD] px-4 py-3" type="number" min="0" step="any" value="100" required>
+       <div class="mt-5 grid grid-cols-[1fr_auto_1fr] items-end gap-3">
+        <div><label class="block font-semibold" for="cur-from">From</label>
+         <select id="cur-from" class="mt-2 w-full rounded-xl border border-[#DDE3DD] px-4 py-3"></select></div>
+        <button type="button" class="mb-1 rounded-xl border border-[#DDE3DD] p-3" onclick="swapCurrency()" aria-label="Swap currencies"><i data-lucide="arrow-left-right" class="w-4 h-4"></i></button>
+        <div><label class="block font-semibold" for="cur-to">To</label>
+         <select id="cur-to" class="mt-2 w-full rounded-xl border border-[#DDE3DD] px-4 py-3"></select></div>
+       </div>
+       <button class="mt-6 w-full rounded-xl bg-[#174C3C] px-5 py-3.5 font-semibold text-white" type="submit">Convert</button>
+      </form>
+      <div id="currency-result" class="mt-5 hidden rounded-3xl bg-[#E8F0EA] p-7 text-center">
+       <p id="currency-result-text" class="font-editorial text-3xl text-[#174C3C]"></p>
+       <p id="currency-result-rate" class="mt-2 text-sm text-[#718078]"></p>
+      </div>
+      <div id="currency-loading" class="hidden mt-5 flex items-center justify-center gap-2 py-6"><span class="loader-dots"><span></span><span></span><span></span></span></div>
+      <div id="currency-error" class="hidden mt-5 rounded-2xl bg-[#fdeceb] p-4 text-sm text-[#b44a36]"></div>
+     </div>
+    </section>
+
+    <!-- ============ TRANSLATOR ============ -->
+    <section id="translator" class="page">
+     <div class="w-full max-w-2xl mx-auto px-5 py-8">
+      <button class="mb-5 flex items-center gap-2 text-sm font-semibold text-[#174C3C]" type="button" onclick="showView('tools')"><i data-lucide="arrow-left" class="w-4 h-4"></i>Back to tools</button>
+      <div class="flex items-center gap-3">
+       <div class="mascot-float shrink-0" data-mascot="talk" data-mascot-size="52"></div>
+       <div><h1 class="font-editorial text-4xl text-[#174C3C]">Travel translator</h1><p id="translator-status" class="mt-1 text-sm"></p></div>
+      </div>
+      <form id="translator-form" class="mt-7 rounded-3xl border border-[#DDE3DD] bg-white p-6 md:p-8" onsubmit="translateText(event)">
+       <label class="block font-semibold" for="trans-input">Text</label>
+       <textarea id="trans-input" class="mt-2 w-full rounded-xl border border-[#DDE3DD] px-4 py-3" rows="3" placeholder="Where is the nearest bus stop?" required></textarea>
+       <div class="mt-5 grid grid-cols-2 gap-4">
+        <div><label class="block font-semibold" for="trans-source">From</label>
+         <select id="trans-source" class="mt-2 w-full rounded-xl border border-[#DDE3DD] px-4 py-3">
+          <option value="en">English</option><option value="ta">Tamil</option><option value="hi">Hindi</option><option value="kn">Kannada</option><option value="ml">Malayalam</option>
+         </select></div>
+        <div><label class="block font-semibold" for="trans-target">To</label>
+         <select id="trans-target" class="mt-2 w-full rounded-xl border border-[#DDE3DD] px-4 py-3">
+          <option value="ta">Tamil</option><option value="hi">Hindi</option><option value="kn">Kannada</option><option value="ml">Malayalam</option><option value="en">English</option>
+         </select></div>
+       </div>
+       <button class="mt-6 w-full rounded-xl bg-[#174C3C] px-5 py-3.5 font-semibold text-white" type="submit">Translate</button>
+      </form>
+      <div id="translator-loading" class="hidden mt-5 flex items-center justify-center gap-2 py-6"><span class="loader-dots"><span></span><span></span><span></span></span></div>
+      <div id="translator-result" class="mt-5 hidden rounded-3xl bg-[#E8F0EA] p-7">
+       <p id="translator-result-text" class="font-editorial text-2xl text-[#174C3C]"></p>
+      </div>
+      <div id="translator-error" class="hidden mt-5 rounded-2xl bg-[#fdeceb] p-4 text-sm text-[#b44a36]"></div>
+      <div class="mt-8">
+       <h2 class="font-editorial text-xl text-[#174C3C]">Handy phrasebook</h2>
+       <div id="phrasebook-list" class="mt-3 grid sm:grid-cols-2 gap-3"></div>
+      </div>
+     </div>
+    </section>
+
+    <!-- ============ LENS SCANNER ============ -->
+    <section id="scanner" class="page">
+     <div class="w-full max-w-2xl mx-auto px-5 py-8">
+      <button class="mb-5 flex items-center gap-2 text-sm font-semibold text-[#174C3C]" type="button" onclick="showView('tools')"><i data-lucide="arrow-left" class="w-4 h-4"></i>Back to tools</button>
+      <div class="flex items-center gap-3">
+       <div class="mascot-float shrink-0" data-mascot="point" data-mascot-size="52"></div>
+       <div><h1 class="font-editorial text-4xl text-[#174C3C]">Lens scanner</h1><p id="scanner-status" class="mt-1 text-sm"></p></div>
+      </div>
+      <div class="mt-7 scan-drop">
+       <i data-lucide="camera" class="mx-auto mb-3 text-[#174C3C]"></i>
+       <p class="text-[#174C3C] font-semibold">Scan a sign, menu, or landmark</p>
+       <p class="mt-1 text-sm text-[#718078]">Use your camera for a live capture, or upload a photo.</p>
+       <div class="mt-4 flex flex-wrap justify-center gap-3">
+        <label class="rounded-xl bg-[#174C3C] px-4 py-2.5 text-sm font-semibold text-white cursor-pointer">Open camera<input id="scan-camera-input" type="file" accept="image/*" capture="environment" class="hidden" onchange="handleScanImage(event)"></label>
+        <label class="rounded-xl border border-[#174C3C] px-4 py-2.5 text-sm font-semibold text-[#174C3C] cursor-pointer">Upload photo<input id="scan-file-input" type="file" accept="image/*" class="hidden" onchange="handleScanImage(event)"></label>
+       </div>
+      </div>
+      <canvas id="scan-canvas" class="hidden mt-5 w-full rounded-2xl border border-[#DDE3DD]"></canvas>
+      <div id="scanner-loading" class="hidden mt-5 flex items-center justify-center gap-2 py-6"><span class="loader-dots"><span></span><span></span><span></span></span></div>
+      <div id="scanner-result" class="hidden mt-5 rounded-3xl border border-[#DDE3DD] bg-white p-6"></div>
+      <div id="scanner-error" class="hidden mt-5 rounded-2xl bg-[#fdeceb] p-4 text-sm text-[#b44a36]"></div>
+     </div>
+    </section>
+
+    <!-- ============ TRAVEL CALENDAR ============ -->
+    <section id="calendar" class="page">
+     <div class="w-full max-w-3xl mx-auto px-5 py-8">
+      <button class="mb-5 flex items-center gap-2 text-sm font-semibold text-[#174C3C]" type="button" onclick="showView('tools')"><i data-lucide="arrow-left" class="w-4 h-4"></i>Back to tools</button>
+      <div class="flex items-center justify-between gap-3">
+       <div class="flex items-center gap-3">
+        <div class="mascot-float shrink-0" data-mascot="calculator" data-mascot-size="52"></div>
+        <div><h1 class="font-editorial text-4xl text-[#174C3C]">Travel calendar</h1><p class="mt-1 text-sm text-[#718078]">Linked to your saved trips' itineraries</p></div>
+       </div>
+       <div class="flex items-center gap-2">
+        <button class="rounded-xl border border-[#DDE3DD] p-2.5" type="button" onclick="calendarShift(-1)" aria-label="Previous month"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+        <span id="cal-month-label" class="font-semibold min-w-[130px] text-center"></span>
+        <button class="rounded-xl border border-[#DDE3DD] p-2.5" type="button" onclick="calendarShift(1)" aria-label="Next month"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+       </div>
+      </div>
+      <div class="mt-6 rounded-3xl border border-[#DDE3DD] bg-white p-5">
+       <div class="cal-grid text-center text-xs font-bold text-[#718078] mb-2">
+        <span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span>
+       </div>
+       <div id="cal-grid" class="cal-grid"></div>
+      </div>
+      <div id="cal-day-detail" class="mt-5 hidden rounded-3xl bg-[#E8F0EA] p-6"></div>
+      <div id="cal-empty" class="hidden mt-6 rounded-3xl border border-dashed border-[#DDE3DD] bg-white p-10 text-center text-[#718078]">No dated trips yet — plan a trip with start/end dates to see it here.</div>
+     </div>
+    </section>
+
+    <!-- ============ VEHICLE RENTAL ============ -->
+    <section id="vehicles" class="page">
+     <div class="w-full max-w-5xl mx-auto px-5 py-8">
+      <button class="mb-5 flex items-center gap-2 text-sm font-semibold text-[#174C3C]" type="button" onclick="showView('tools')"><i data-lucide="arrow-left" class="w-4 h-4"></i>Back to tools</button>
+      <div class="flex items-center gap-3">
+       <div class="mascot-float shrink-0" data-mascot="suitcase" data-mascot-size="52"></div>
+       <div><h1 class="font-editorial text-4xl text-[#174C3C]">Vehicle rental</h1><p class="mt-1 text-sm text-[#718078]">Demo listings — bookings add a cost to your expense tracker</p></div>
+      </div>
+      <div id="vehicle-list" class="mt-7 grid sm:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+     </div>
+    </section>
+
+    <!-- ============ EXPENSE TRACKER ============ -->
+    <section id="expenses" class="page">
+     <div class="w-full max-w-3xl mx-auto px-5 py-8">
+      <button class="mb-5 flex items-center gap-2 text-sm font-semibold text-[#174C3C]" type="button" onclick="showView('tools')"><i data-lucide="arrow-left" class="w-4 h-4"></i>Back to tools</button>
+      <div class="flex items-center gap-3">
+       <div class="mascot-float shrink-0" data-mascot="calculator" data-mascot-size="52"></div>
+       <div><h1 class="font-editorial text-4xl text-[#174C3C]">Expense tracker</h1><p class="mt-1 text-sm text-[#718078]">Tracking against: <span id="expense-trip-name" class="font-semibold text-[#174C3C]">no trip selected</span></p></div>
+      </div>
+      <div class="mt-6 rounded-3xl bg-[#E8F0EA] p-6">
+       <div class="flex justify-between text-sm font-semibold"><span id="expense-spent">₹0 spent</span><span id="expense-budget">of ₹0 budget</span></div>
+       <div class="mt-2 h-2.5 overflow-hidden rounded-full bg-white"><div id="expense-bar" class="h-full rounded-full bg-[#174C3C]" style="width:0%"></div></div>
+       <p id="expense-warning" class="hidden mt-3 text-sm text-[#b44a36] font-semibold"></p>
+      </div>
+      <form id="expense-form" class="mt-6 rounded-3xl border border-[#DDE3DD] bg-white p-6 grid sm:grid-cols-[1fr_1fr_auto] gap-3 items-end" onsubmit="addExpense(event)">
+       <div><label class="block text-sm font-semibold" for="expense-category">Category</label>
+        <select id="expense-category" class="mt-1 w-full rounded-xl border border-[#DDE3DD] px-3 py-2.5"><option>Accommodation</option><option>Food</option><option>Transport</option><option>Activities</option><option>Shopping</option><option>Other</option></select></div>
+       <div><label class="block text-sm font-semibold" for="expense-amount">Amount (₹)</label>
+        <input id="expense-amount" class="mt-1 w-full rounded-xl border border-[#DDE3DD] px-3 py-2.5" type="number" min="1" required></div>
+       <button class="rounded-xl bg-[#174C3C] px-5 py-2.5 font-semibold text-white h-fit" type="submit">Add</button>
+       <input id="expense-note" class="sm:col-span-3 w-full rounded-xl border border-[#DDE3DD] px-3 py-2.5" type="text" placeholder="Note (optional)">
+      </form>
+      <div id="expense-list" class="mt-6 rounded-3xl border border-[#DDE3DD] bg-white p-6"></div>
+      <div id="expense-empty" class="hidden mt-6 rounded-3xl border border-dashed border-[#DDE3DD] bg-white p-10 text-center text-[#718078]">No expenses logged yet.</div>
+     </div>
+    </section>
+
+    <!-- ============ EMERGENCY SUPPORT ============ -->
+    <section id="emergency" class="page">
+     <div class="w-full max-w-3xl mx-auto px-5 py-8">
+      <button class="mb-5 flex items-center gap-2 text-sm font-semibold text-[#174C3C]" type="button" onclick="showView('tools')"><i data-lucide="arrow-left" class="w-4 h-4"></i>Back to tools</button>
+      <div class="flex items-center gap-3">
+       <div class="mascot-float shrink-0" data-mascot="alert" data-mascot-size="52"></div>
+       <div><h1 class="font-editorial text-4xl text-[#174C3C]">Emergency support</h1><p class="mt-1 text-sm text-[#718078]">Fast help when you need it most</p></div>
+      </div>
+      <div class="mt-7 grid sm:grid-cols-3 gap-4">
+       <a href="tel:112" class="rounded-2xl bg-[#b44a36] p-5 text-center text-white font-bold"><i data-lucide="siren" class="mx-auto mb-2"></i>Call 112<br><span class="text-xs font-normal opacity-90">All-in-one emergency</span></a>
+       <a href="tel:102" class="rounded-2xl bg-[#174C3C] p-5 text-center text-white font-bold"><i data-lucide="siren" class="mx-auto mb-2"></i>Call 102<br><span class="text-xs font-normal opacity-90">Ambulance</span></a>
+       <button class="rounded-2xl bg-[#E7B65A] p-5 text-center text-[#26332E] font-bold" type="button" onclick="shareLiveLocation()"><i data-lucide="share-2" class="mx-auto mb-2"></i>Share my location<br><span class="text-xs font-normal opacity-90">Copy a live-location link</span></button>
+      </div>
+      <div class="mt-8">
+       <h2 class="font-editorial text-2xl text-[#174C3C]">Nearest hospitals</h2>
+       <div id="emergency-hospitals" class="mt-4 space-y-3"></div>
+      </div>
+     </div>
+    </section>
+   </main>
+
+   <nav class="fixed bottom-0 left-0 right-0 z-50 flex md:hidden justify-around border-t border-[#DDE3DD] bg-[#F5F3ED] px-2 py-2" aria-label="Mobile navigation">
+    <button class="p-2 text-[#174C3C]" type="button" aria-label="Home" onclick="showView('home')"><i data-lucide="home"></i></button>
+    <button class="p-2 text-[#174C3C]" type="button" aria-label="Explore" onclick="showView('nearby')"><i data-lucide="compass"></i></button>
+    <button class="p-2 text-[#174C3C]" type="button" aria-label="Tools" onclick="showView('tools')"><i data-lucide="grid"></i></button>
+    <button class="p-2 text-[#174C3C]" type="button" aria-label="Trips" onclick="showView('trips')"><i data-lucide="luggage"></i></button>
+    <button class="p-2 text-[#174C3C]" type="button" aria-label="Profile" onclick="showView('profile')"><i data-lucide="user"></i></button>
+   </nav>
+   <div id="toast" class="toast fixed bottom-6 left-1/2 z-[70] -translate-x-1/2 rounded-full bg-[#26332E] px-5 py-3 text-sm text-white shadow-xl" role="status"></div>
+
+   <!-- Yaatra AI launcher -->
+   <div id="yaatra-ai-launcher">
+    <button id="yaatra-ai-toggle" class="yaatra-launcher-btn" type="button" aria-label="Open Yaatra AI travel assistant" onclick="toggleYaatraAI()">
+     <span class="yaatra-ping"></span>
+     <span id="yaatra-launcher-icon" data-mascot="talk" data-mascot-size="42"></span>
+    </button>
+   </div>
+
+   <!-- Yaatra AI chat panel -->
+   <section id="yaatra-ai-panel" aria-label="Yaatra AI travel assistant">
+    <header class="flex items-center justify-between gap-3 px-4 py-3.5 border-b border-[#DDE3DD] bg-white/70">
+     <div class="flex items-center gap-3">
+      <div data-mascot="talk" data-mascot-size="40"></div>
+      <div>
+       <p class="font-editorial text-lg leading-tight text-[#174C3C]">Yaatra AI</p>
+       <p class="text-xs text-[#718078] leading-tight">Your travel companion</p>
+      </div>
+     </div>
+     <div class="flex items-center gap-1">
+      <button type="button" class="p-2 rounded-full hover:bg-[#E8F0EA]" aria-label="Reset conversation" onclick="resetYaatraChat()"><i data-lucide="rotate-ccw" class="w-4 h-4 text-[#718078]"></i></button>
+      <button type="button" class="p-2 rounded-full hover:bg-[#E8F0EA]" aria-label="Close Yaatra AI" onclick="toggleYaatraAI(false)"><i data-lucide="x" class="w-4 h-4 text-[#718078]"></i></button>
+     </div>
+    </header>
+
+    <div id="yaatra-ai-messages" class="flex-1 overflow-y-auto px-4 py-4 space-y-4"></div>
+
+    <div id="yaatra-ai-chips" class="flex gap-2 overflow-x-auto hide-scroll px-4 pb-2"></div>
+
+    <form id="yaatra-ai-form" class="flex items-center gap-2 border-t border-[#DDE3DD] bg-white/70 p-3" onsubmit="submitYaatraChat(event)">
+     <input id="yaatra-ai-input" class="flex-1 rounded-xl border border-[#DDE3DD] bg-white px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-[#E7B65A]" type="text" placeholder="Plan a 3-day Ooty trip under ₹10,000…" autocomplete="off">
+     <button id="yaatra-ai-send" class="grid h-10 w-10 place-items-center rounded-xl bg-[#174C3C] text-white disabled:opacity-50" type="submit" aria-label="Send"><i data-lucide="send" class="w-4 h-4"></i></button>
+    </form>
+   </section>
+  </div>
+
+<script>
+/* =====================================================================
+   0. CENTRAL CONFIG — every external API key/endpoint lives here.
+   
+   IMPORTANT SECURITY NOTICE: API keys in frontend JavaScript are exposed
+   to anyone who views the page. In production, proxy these calls through
+   your own backend server. The Groq key shown here has been replaced with
+   a placeholder; the previously exposed key should be revoked immediately
+   and a new one generated at https://console.groq.com/keys.
+   ===================================================================== */
+const YAATRA_CONFIG = {
+  API_BASE: window.YAATRA_API_BASE || '/api',
+  GROQ_MODEL: 'server-configured'
+};
+function isPlaceholder(key){ return !key || key==='YOUR_KEY' || key==='YOUR_GROQ_API_KEY' || key.trim()===''; }
+
+/* =====================================================================
+   0b. PERSISTENCE — localStorage-backed store with the same async
+   get/set/list/delete shape the UI already expects, so the app runs
+   standalone in VS Code Live Server (no artifact runtime required).
+   Swap this module for an IndexedDB-backed one later without touching
+   any call sites, since every call site only talks to YaatraStore.
+   ===================================================================== */
+const YaatraStore = {
+  _k(key){ return `yaatra:${key}`; },
+  async set(key, value){
+    try{ localStorage.setItem(this._k(key), value); return {key, value, shared:false}; }
+    catch(e){ console.warn('YaatraStore.set failed', e); return null; }
+  },
+  async get(key){
+    try{
+      const v = localStorage.getItem(this._k(key));
+      if(v===null) return null;
+      return {key, value:v, shared:false};
+    }catch(e){ return null; }
+  },
+  async delete(key){
+    try{ localStorage.removeItem(this._k(key)); return {key, deleted:true, shared:false}; }
+    catch(e){ return null; }
+  },
+  async list(prefix=''){
+    try{
+      const full = this._k(prefix);
+      const keys = Object.keys(localStorage).filter(k=>k.startsWith('yaatra:')&&k.startsWith(full)).map(k=>k.replace('yaatra:',''));
+      return {keys, prefix, shared:false};
+    }catch(e){ return {keys:[]}; }
+  }
+};
+// Backward-compatible alias so any legacy `window.storage.*` call keeps working.
+window.storage = YaatraStore;
+
+/* =====================================================================
+   0c. AI SERVICE — Groq (OpenAI-compatible) chat completions,
+   used for the chatbot, trip planning, itinerary edits, recommendations
+   and budget analysis. Falls back to on-device Demo Mode only when the
+   key is genuinely missing/placeholder. Handles HTTP errors properly
+   and logs detailed error information to the console.
+   ===================================================================== */
+const YaatraAI = {
+  async chat(history, systemPrompt){
+    try {
+      const response = await fetch(`${YAATRA_CONFIG.API_BASE}/ai/chat`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({message: history.at(-1)?.content || '', history, context:{location:userLocation, destination:currentTrip?.destination, budget:currentTrip?.budget, travelers:currentTrip?.travelers}, systemPrompt})
+      });
+      const data = await response.json().catch(()=>({}));
+      if(response.ok && data.text) return {text:data.text, demo:Boolean(data.demo), structured:data.structured};
+      if(data.demo && /not configured|missing/i.test(data.message||'')) return {text:data.text || demoAIResponse(history), demo:true, reason:'missing_key', errorMessage:data.message};
+      const error = new Error(data.message || `Yaatra AI request failed (${response.status})`);
+      error.status = response.status;
+      throw error;
+    } catch(err) {
+      console.error('Yaatra AI error:', {status:err.status, message:err.message});
+      const reason=err.status===401||err.status===403?'authentication_error':err.status===429?'rate_limit':err.status===503?'service_unavailable':'api_error';
+      return {text:err.message || 'Yaatra AI is unavailable right now.', demo:false, reason, errorMessage:err.message};
+    }
+  }
+};
+
+const destinations = [
+  {name:'Ooty', meta:'Tamil Nadu · Hill station', seed:'ooty-hills'},
+  {name:'Kodaikanal', meta:'Tamil Nadu · Lake town', seed:'kodaikanal-lake'},
+  {name:'Coorg', meta:'Karnataka · Coffee country', seed:'coorg-estate'},
+  {name:'Munnar', meta:'Kerala · Tea gardens', seed:'munnar-tea'},
+  {name:'Goa', meta:'Goa · Beaches', seed:'goa-beach'},
+];
+
+// Resolves a genuine photo for a real-world name (place, destination, vehicle model)
+// via the backend's Wikipedia-backed /api/image route. Never returns a random/
+// unrelated stock photo — callers get null on a miss and should show a clearly
+// labeled placeholder instead. In-memory cache avoids repeat lookups per session.
+const imageResolveCache = new Map();
+async function resolveRealImage(name, hint=''){
+  const key = `${name}|${hint}`.toLowerCase();
+  if(imageResolveCache.has(key)) return imageResolveCache.get(key);
+  const promise = (async()=>{
+    try{
+      const res = await fetch(`${YAATRA_CONFIG.API_BASE}/image?name=${encodeURIComponent(name)}&hint=${encodeURIComponent(hint)}`);
+      if(!res.ok) return null;
+      const data = await res.json();
+      return data.image || null;
+    }catch(e){ return null; }
+  })();
+  imageResolveCache.set(key, promise);
+  return promise;
+}
+// Fills in an <img> once a real photo resolves; leaves the placeholder in place on a miss.
+function hydrateImage(imgEl, name, hint=''){
+  if(!imgEl) return;
+  resolveRealImage(name, hint).then(url=>{
+    if(url){ imgEl.src = url; imgEl.closest('.img-placeholder')?.classList.remove('img-placeholder'); }
+  });
+}
+
+const apiService = {
+  // Used only if the live /api/places service is unreachable. These are illustrative
+  // sample listings (not real, bookable businesses), so they intentionally carry no
+  // photo — a fabricated "real" photo for a fictional business would be misleading.
+  places: [
+    {id:'anna-biryani',name:'Anna Biryani House',type:'Food',category:'food',distance:0.7,price:95,rating:4.6,lat:11.017,lng:76.955,image:null,description:'A beloved Coimbatore institution for fragrant seeraga samba biryani and generous South Indian hospitality.'},
+    {id:'ooty-lake',name:'Ooty Lake',type:'Attraction',category:'attractions',distance:1.8,price:30,rating:4.5,lat:11.410,lng:76.695,image:null,description:'A calm boating lake framed by eucalyptus slopes, ideal for an unhurried hill-station afternoon.'},
+    {id:'nilgiri-stay',name:'The Nilgiri House',type:'Hotel',category:'hotels',distance:2.4,price:3800,rating:4.8,lat:11.403,lng:76.700,image:null,description:'A quiet heritage-style stay with warm rooms, garden breakfasts, and misty hillside views.'},
+    {id:'city-care',name:'City Care Hospital',type:'Hospital',category:'health',distance:1.2,price:0,rating:4.3,lat:11.019,lng:76.962,image:null,description:'A modern multi-speciality hospital with a 24-hour emergency department and pharmacy.'},
+    {id:'temple-walk',name:'Marudamalai Temple Walk',type:'Attraction',category:'attractions',distance:4.8,price:0,rating:4.7,lat:11.045,lng:76.850,image:null,description:'A scenic temple approach with expansive views of the Western Ghats and Coimbatore plains.'}
+  ],
+  async search(query) {
+    try {
+      const coords=userCoords || DESTINATION_COORDS[userLocation] || DESTINATION_COORDS.Coimbatore;
+      const params=new URLSearchParams({lat:coords[0],lon:coords[1],category:query.category||'',radius:query.maxDist?Number(query.maxDist)*1000:5000});
+      const response=await fetch(`${YAATRA_CONFIG.API_BASE}/places?${params}`); const data=await response.json();
+      if(response.ok && Array.isArray(data.places) && data.places.length){
+        return data.places.filter(p=>!query.maxPrice || p.price<=query.maxPrice).sort((a,b)=>query.sort==='price'?a.price-b.price:query.sort==='rating'?(b.rating||0)-(a.rating||0):a.distance-b.distance);
+      }
+    } catch(error){ console.warn('Live places unavailable; using local directory',error.message); }
+    return this.places.filter(p=>!query.category || p.category===query.category).filter(p=>!query.maxPrice || p.price<=query.maxPrice).filter(p=>!query.maxDist || p.distance<=query.maxDist).sort((a,b)=>query.sort==='price'?a.price-b.price:query.sort==='rating'?b.rating-a.rating:a.distance-b.distance);
+  }
+};
+
+let nearbyMap, placeMap, markers=[], currentPlace, currentTrip, savedTrips=[], plannerStep=1, userLocation='Coimbatore', userCoords=null;
+
+function renderDestinationStrip(){
+  const strip = document.getElementById('destination-strip');
+  strip.innerHTML = destinations.map((d,i) => `
+    <button class="min-w-[205px] text-left group" type="button" onclick="openDestination('${d.name}')">
+      <span class="img-placeholder h-40 w-full rounded-2xl overflow-hidden block">
+        <img id="dest-img-${i}" class="h-40 w-full rounded-2xl object-cover group-hover:scale-[1.02] transition hidden" loading="lazy" alt="${d.name}" onload="this.classList.remove('hidden')">
+        <i data-lucide="image" class="w-6 h-6"></i>
+      </span>
+      <span class="mt-3 block text-lg font-bold">${d.name}</span>
+      <span class="text-sm text-[#718078]">${d.meta}</span>
+    </button>`).join('');
+  if(window.lucide) lucide.createIcons();
+  destinations.forEach((d,i)=>hydrateImage(document.getElementById(`dest-img-${i}`), d.name, 'India destination'));
+}
+
+function showView(id) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(id==='nearby') setTimeout(()=>initNearbyMap(),60);
+  if(id==='trips') renderTrips();
+  if(id==='currency') initCurrencyTool();
+  if(id==='translator') renderPhrasebook();
+  if(id==='calendar') initCalendar();
+  if(id==='vehicles') renderVehicles();
+  if(id==='expenses') renderExpenses();
+  if(id==='profile') renderFavorites();
+  if(id==='emergency') renderEmergencyHospitals();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function toast(message){
+  const t=document.getElementById('toast');
+  t.textContent=message;
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2800);
+}
+
+function parseQuery(text=''){
+  text=text.toLowerCase();
+  return {
+    category:/(biryani|food|restaurant|meal|vegetarian|veg\b)/.test(text)?'food':/(hospital|health|doctor|emergency|clinic)/.test(text)?'health':/(hotel|stay|resort|accommodation)/.test(text)?'hotels':/(temple|attraction|visit|sightseeing|place)/.test(text)?'attractions':/(petrol|fuel|railway|station|bus stand)/.test(text)?'transport':'',
+    maxPrice:(text.match(/under\s*₹?\s*(\d+)/)||[])[1],
+    maxDist:(text.match(/within\s*(\d+)\s*km/)||[])[1],
+    sort:/cheap/.test(text)?'price':/top rated|best/.test(text)?'rating':'nearest'
+  };
+}
+
+function handleSearch(e){ e.preventDefault(); quickSearch(document.getElementById('hero-search').value); }
+
+function quickSearch(query){
+  if(tryNaturalLanguageCommand(query)) return;
+  const filters = parseQuery(query);
+  document.getElementById('sort-filter').value = filters.sort;
+  showView('nearby');
+  setTimeout(()=>renderNearby(filters), 120);
+}
+
+function toggleFilters(){ document.getElementById('filter-panel').classList.toggle('hidden'); }
+
+function applyFilters(){
+  renderNearby({
+    maxDist: document.getElementById('distance-filter').value==='all' ? '' : document.getElementById('distance-filter').value,
+    maxPrice: document.getElementById('price-filter').value==='all' ? '' : document.getElementById('price-filter').value,
+    sort: document.getElementById('sort-filter').value
+  });
+}
+
+function initNearbyMap(){
+  if(nearbyMap){ nearbyMap.invalidateSize(); return; }
+  try{
+    nearbyMap = L.map('nearby-map').setView([11.017,76.955],11);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(nearbyMap);
+    renderNearby({sort:document.getElementById('sort-filter').value || 'nearest'});
+  }catch(e){
+    document.getElementById('map-fallback').classList.remove('hidden');
+    renderNearby({sort:'nearest'});
+  }
+}
+
+async function renderNearby(filters={sort:'nearest'}){
+  const results = await apiService.search(filters);
+  apiService.liveResults = results;
+  const list = document.getElementById('nearby-list');
+  list.innerHTML='';
+  document.getElementById('results-summary').textContent = `${results.length} place${results.length===1?'':'s'} around ${userLocation}`;
+  document.getElementById('empty-results').classList.toggle('hidden', results.length!==0);
+  markers.forEach(m=>m.remove());
+  markers=[];
+  results.forEach((p,i)=>{
+    const el=document.createElement('button');
+    el.className='w-full rounded-xl border border-[#DDE3DD] p-3 text-left hover:border-[#D9825B] transition flex gap-3';
+    const imgTag = p.image
+      ? `<img src="${p.image}" class="h-16 w-16 flex-none rounded-lg object-cover" loading="lazy" alt="${p.name}">`
+      : `<span class="img-placeholder h-16 w-16 flex-none rounded-lg overflow-hidden"><img id="nearby-img-${i}" class="h-16 w-16 rounded-lg object-cover hidden" loading="lazy" alt="${p.name}" onload="this.classList.remove('hidden')"><i data-lucide="image" class="w-4 h-4"></i></span>`;
+    el.innerHTML=`
+      ${imgTag}
+      <div class="flex-1 flex justify-between gap-3">
+        <div>
+          <p class="text-xs uppercase font-bold tracking-wider text-[#D9825B]">${p.type}</p>
+          <h3 class="mt-1 font-bold">${p.name}</h3>
+          <p class="mt-1 text-sm text-[#718078]">${p.distance} km away · ${p.price ? 'from ₹'+p.price : 'Free entry'}</p>
+        </div>
+        <span class="h-fit rounded-full bg-[#E8F0EA] px-2 py-1 text-sm font-bold">★ ${p.rating}</span>
+      </div>`;
+    el.onclick=()=>openPlace(p.id);
+    list.appendChild(el);
+    if(!p.image) hydrateImage(document.getElementById(`nearby-img-${i}`), p.name, p.type);
+    if(nearbyMap){
+      const marker=L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',html:`<div class="map-pin ${p.category==='food'?'food':p.category==='health'?'health':p.category==='hotels'?'stay':''}"></div>`})})
+        .addTo(nearbyMap).bindPopup(`<strong>${p.name}</strong><br>${p.type}`);
+      markers.push(marker);
+    }
+  });
+  if(window.lucide) lucide.createIcons();
+}
+
+function openPlace(id){
+  currentPlace = [...apiService.places,...(apiService.liveResults||[])].find(p=>p.id===id);
+  const p = currentPlace;
+  if(!p){ toast('This place is no longer available. Please search again.'); return; }
+  const placeImgEl = document.getElementById('place-image');
+  placeImgEl.alt = p.name;
+  if(p.image){ placeImgEl.src = p.image; placeImgEl.classList.remove('hidden'); placeImgEl.closest('.img-placeholder')?.classList.remove('img-placeholder'); }
+  else { placeImgEl.src=''; placeImgEl.classList.add('hidden'); placeImgEl.closest('.img-placeholder')?.classList.add('img-placeholder'); hydrateImage(placeImgEl, p.name, p.type); }
+  document.getElementById('place-title').textContent = p.name;
+  document.getElementById('place-type').textContent = p.type;
+  document.getElementById('place-meta').textContent = `${p.distance} km away · ${p.price ? 'From ₹'+p.price : 'Free entry'}`;
+  document.getElementById('place-rating').textContent = `★ ${p.rating}`;
+  document.getElementById('place-description').textContent = p.description;
+  document.getElementById('place-nearby-links').innerHTML = [...apiService.places,...(apiService.liveResults||[])].filter(x=>x.id!==p.id).slice(0,3)
+    .map(x=>`<button class="block text-left font-semibold text-[#174C3C] underline underline-offset-4" onclick="openPlace('${x.id}')">${x.name}</button>`).join('');
+  showView('place');
+  const oldBanner = document.getElementById('route-banner');
+  if(oldBanner) oldBanner.remove();
+  placeRouteLine = null;
+  setTimeout(()=>{
+    try{
+      if(placeMap) placeMap.remove();
+      placeMap = L.map('place-map').setView([p.lat,p.lng],13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(placeMap);
+      L.marker([p.lat,p.lng]).addTo(placeMap);
+    }catch(e){}
+  },100);
+}
+
+function openDestination(name){
+  document.getElementById('trip-destination').value=name;
+  openPlanner();
+}
+
+function locateUser(){
+  if(!navigator.geolocation){ toast('Location is unavailable. Using Coimbatore.'); return; }
+  toast('Finding your live location…');
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    userCoords = [pos.coords.latitude, pos.coords.longitude];
+    let label = 'your live location';
+    try{
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${pos.coords.latitude}&lon=${pos.coords.longitude}`, {headers:{'Accept-Language':'en'}});
+      if(res.ok){
+        const data = await res.json();
+        label = (data.address && (data.address.suburb||data.address.city||data.address.town||data.address.county)) || label;
+      }
+    }catch(e){ /* keep generic label if reverse geocoding is unavailable */ }
+    userLocation = label;
+    document.getElementById('profile-location').textContent = `Using ${label} as your live starting point.`;
+    document.getElementById('location-pill-text').textContent = label;
+    if(nearbyMap){
+      nearbyMap.setView(userCoords,13);
+      L.circleMarker(userCoords,{radius:9,color:'#174C3C'}).addTo(nearbyMap);
+    }
+    toast(`Live location updated: ${label}.`);
+    renderNearby({sort:document.getElementById('sort-filter')?.value || 'nearest'});
+  }, ()=>toast('Location permission was not granted. Using Coimbatore instead.'), {timeout:8000});
+}
+
+function initPlanner(){
+  plannerStep=1;
+  document.querySelectorAll('.planner-step').forEach(s=>s.classList.toggle('hidden', Number(s.dataset.step)!==1));
+  renderStepper();
+  document.getElementById('planner-back').classList.add('invisible');
+  document.getElementById('planner-next').textContent='Continue';
+  document.getElementById('form-error').classList.add('hidden');
+}
+
+function openPlanner(){ showView('planner'); initPlanner(); }
+
+function renderStepper(){
+  document.getElementById('planner-count').textContent = `Step ${plannerStep} of 8`;
+  document.getElementById('stepper').innerHTML = Array.from({length:8},(_,i)=>
+    `<span class="step-dot h-2 flex-1 rounded-full bg-[#DDE3DD] ${i+1<plannerStep?'done':i+1===plannerStep?'current':''}"></span>`).join('');
+}
+
+function plannerNext(e){
+  e.preventDefault();
+  const active=document.querySelector(`.planner-step[data-step="${plannerStep}"]`);
+  const inputs=active.querySelectorAll('input[required],select[required]');
+  if([...inputs].some(i=>!i.checkValidity())){
+    document.getElementById('form-error').textContent='Please complete this step before continuing.';
+    document.getElementById('form-error').classList.remove('hidden');
+    return;
+  }
+  const startDate = document.getElementById('trip-start-date').value;
+  const endDate = document.getElementById('trip-end-date').value;
+  if(plannerStep===3 && startDate && endDate && endDate < startDate){
+    document.getElementById('form-error').textContent='Your end date needs to be on or after your start date.';
+    document.getElementById('form-error').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('form-error').classList.add('hidden');
+  if(plannerStep===8){ generateTrip(); return; }
+  plannerStep++;
+  moveStep();
+}
+
+function plannerBack(){ if(plannerStep>1){ plannerStep--; moveStep(); } }
+
+function moveStep(){
+  document.querySelectorAll('.planner-step').forEach(s=>s.classList.toggle('hidden', Number(s.dataset.step)!==plannerStep));
+  document.getElementById('planner-back').classList.toggle('invisible', plannerStep===1);
+  document.getElementById('planner-next').textContent = plannerStep===8 ? 'Create itinerary' : 'Continue';
+  document.getElementById('form-error').classList.add('hidden');
+  renderStepper();
+}
+
+function budgetHint(){
+  const budget=Number(document.getElementById('trip-budget').value);
+  const warn=document.getElementById('budget-warning');
+  if(budget && budget<6000){
+    warn.textContent='This budget may be tight for a comfortable multi-day trip. Consider ₹6,000 or more.';
+    warn.classList.remove('hidden');
+  } else warn.classList.add('hidden');
+}
+
+async function generateTrip(){
+  const destination=document.getElementById('trip-destination').value;
+  const travelers=Number(document.getElementById('trip-travelers').value);
+  const budget=Number(document.getElementById('trip-budget').value);
+  const interests=[...document.querySelectorAll('.interest:checked')].map(x=>x.value);
+  currentTrip={trip_name:`${destination} escape`,destination,start_location:document.getElementById('trip-start').value,start_date:document.getElementById('trip-start-date').value,end_date:document.getElementById('trip-end-date').value,travelers,budget,interests:interests.join(', '),accommodation:document.getElementById('trip-stay').value,transport:document.getElementById('trip-transport').value};
+  showView('result'); document.getElementById('generation-state').classList.remove('hidden'); document.getElementById('itinerary-content').classList.add('hidden'); document.getElementById('generation-bar').style.width='12%';
+  try{
+    const route=await estimateRoute(destination); if(route) currentTrip.route=route;
+    document.getElementById('generation-bar').style.width='40%';
+    const prompt=`Create a realistic ${destination} itinerary from ${currentTrip.start_location} for ${currentTrip.start_date} to ${currentTrip.end_date}. Travelers: ${travelers}. Budget: INR ${budget}. Interests: ${interests.join(', ')||'general sightseeing'}. Accommodation: ${currentTrip.accommodation}. Transport: ${currentTrip.transport}. Return JSON only with keys type, destination, summary, days (array of {day,title,stops}), and budget (object with transportation, accommodation, food, activities, shopping, miscellaneous, total). Each stop must have time, name, description, estimated_cost, duration_minutes. Do not invent businesses; use attractions or clearly marked estimates.`;
+    const result=await YaatraAI.chat([{role:'user',content:prompt}], 'You generate safe, realistic structured travel itineraries.');
+    if(result.structured?.days?.length){ currentTrip.itinerary=result.structured.days; currentTrip.budget_breakdown=result.structured.budget||null; currentTrip.source='yaatra-ai'; currentTrip.ai_summary=result.structured.summary||''; }
+    else if(!result.demo) throw new Error('Live AI returned no structured itinerary.');
+    document.getElementById('generation-bar').style.width='100%';
+    renderItinerary(); document.getElementById('generation-state').classList.add('hidden'); document.getElementById('itinerary-content').classList.remove('hidden');
+    if(result.demo) toast('Live AI unavailable; showing a clearly marked fallback itinerary.');
+  }catch(error){ console.error('Trip generation failed',error); document.getElementById('generation-state').classList.add('hidden'); document.getElementById('itinerary-content').classList.remove('hidden'); renderItinerary(); toast(error.message||'Trip generation failed.'); }
+}
+
+function renderItinerary(){
+  const t=currentTrip;
+  const days = (t.itinerary && t.itinerary.length) ? t.itinerary.length
+    : Math.max(2, Math.min(4, Math.round((new Date(t.end_date)-new Date(t.start_date))/86400000)+1 || 3));
+  const dailyBudget=Math.max(500, Math.round(t.budget/days));
+  if(!t.itinerary || !t.itinerary.length){
+    const stops=[['A scenic local breakfast',Math.round(dailyBudget*.15)],['Signature viewpoint and nature walk',Math.round(dailyBudget*.2)],['A slow regional lunch',Math.round(dailyBudget*.25)],['Golden-hour cultural stop',Math.round(dailyBudget*.15)]];
+    t.itinerary=Array.from({length:days},(_,i)=>({
+      day:i+1,
+      title: i===0 ? `Arrive in ${t.destination}` : i===days-1 ? 'A gentle farewell' : `Explore ${t.destination}`,
+      stops: stops.map(([name,amount])=>({name,amount}))
+    }));
+  }
+  document.getElementById('result-title').textContent=t.trip_name;
+  const routeText = t.route ? ` · ${t.route.distance_km} km from ${t.start_location||'your start point'} (~${t.route.duration_hr} hr drive${t.route.demo?', estimated':''})` : '';
+  document.getElementById('result-meta').textContent=`${t.destination} · ${t.travelers} traveller${t.travelers>1?'s':''} · ${t.transport}${routeText}${t.source==='yaatra-ai' ? ' · Planned with Yaatra AI' : ''}`;
+  document.getElementById('itinerary-days').innerHTML=t.itinerary.map(day=>`
+    <article class="border-l-2 border-[#D9825B] pl-5">
+      <p class="text-sm font-bold text-[#D9825B]">DAY ${day.day}${day.dayBudget ? ' · Carry about ₹'+Number(day.dayBudget).toLocaleString('en-IN') : ' · Carry about ₹'+dailyBudget.toLocaleString('en-IN')}</p>
+      <h3 class="mt-1 text-xl font-bold text-[#174C3C]">${day.title}</h3>
+      <ul class="mt-3 space-y-2 text-[#718078]">${day.stops.map(s=>`<li class="flex justify-between gap-4"><span>• ${s.name}</span><strong class="whitespace-nowrap text-[#174C3C]">${s.amount ? '₹'+Number(s.amount).toLocaleString('en-IN') : '—'}</strong></li>`).join('')}</ul>
+    </article>`).join('');
+  document.getElementById('budget-total').textContent=`₹${Number(t.budget).toLocaleString('en-IN')}${t.source==='yaatra-ai' ? ' (estimated)' : ''}`;
+  const defaultParts=[['Accommodation',45,'#174C3C'],['Food',22,'#D9825B'],['Transport',20,'#E7B65A'],['Activities',13,'#718078']];
+  const colors=['#174C3C','#D9825B','#E7B65A','#718078','#5c8d82'];
+  const parts = t.budget_breakdown
+    ? Object.entries(t.budget_breakdown).map(([label,pct],i)=>[label,pct,colors[i%colors.length]])
+    : defaultParts;
+  document.getElementById('budget-bars').innerHTML=parts.map(x=>`
+    <div><div class="mb-1 flex justify-between text-sm"><span>${x[0]}</span><span>${x[1]}%</span></div>
+    <div class="h-2 overflow-hidden rounded-full bg-white"><div class="h-full rounded-full" style="width:${x[1]}%;background:${x[2]}"></div></div></div>`).join('');
+}
+
+// --- Trip persistence, using the artifact's built-in storage (no localStorage) ---
+async function saveTrip(){
+  if(!currentTrip) return;
+  const button=document.getElementById('save-trip');
+  button.disabled=true;
+  button.textContent='Saving…';
+  try{
+    const id = currentTrip.__id || `trip_${Date.now()}`;
+    currentTrip.__id = id;
+    const result = await window.storage.set(`trips:${id}`, JSON.stringify(currentTrip));
+    if(result){
+      button.textContent='Saved to My Trips';
+      toast('Trip saved.');
+      await loadSavedTrips();
+    } else {
+      throw new Error('no result');
+    }
+  }catch(err){
+    button.textContent='Save trip';
+    toast('We could not save this trip. Please try again.');
+  }finally{
+    button.disabled=false;
+  }
+}
+
+function downloadTrip(){
+  if(!currentTrip) return;
+  const content = `${currentTrip.trip_name}\n${currentTrip.destination}\nBudget: ₹${currentTrip.budget}\n\n` +
+    currentTrip.itinerary.map(d => `Day ${d.day}: ${d.title}\n${d.stops.map(s=>`- ${s.name} (₹${s.amount})`).join('\n')}`).join('\n\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([content],{type:'text/plain'}));
+  a.download='yaatra-itinerary.txt';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function loadSavedTrips(){
+  try{
+    const listing = await window.storage.list('trips:');
+    const keys = listing && listing.keys ? listing.keys : [];
+    const trips = [];
+    for(const key of keys){
+      try{
+        const r = await window.storage.get(key, false);
+        if(r && r.value) trips.push(JSON.parse(r.value));
+      }catch(e){}
+    }
+    savedTrips = trips.sort((a,b)=> (b.__id||'').localeCompare(a.__id||''));
+  }catch(e){
+    savedTrips = [];
+  }
+  renderTrips();
+}
+
+function renderTrips(){
+  const list=document.getElementById('trip-list');
+  const empty=document.getElementById('trips-empty');
+  list.innerHTML='';
+  empty.classList.toggle('hidden', savedTrips.length>0);
+  savedTrips.forEach(t=>{
+    const card=document.createElement('article');
+    card.className='rounded-3xl border border-[#DDE3DD] bg-white p-6';
+    card.innerHTML=`
+      <p class="text-sm font-bold uppercase tracking-wider text-[#D9825B]">${t.destination}</p>
+      <h2 class="mt-2 font-editorial text-2xl text-[#174C3C]">${t.trip_name}</h2>
+      <p class="mt-2 text-sm text-[#718078]">${t.travelers} travellers · ₹${Number(t.budget).toLocaleString('en-IN')}</p>
+      <div class="mt-5 flex gap-2">
+        <button class="rounded-lg bg-[#E8F0EA] px-3 py-2 text-sm font-semibold text-[#174C3C]" onclick="loadTrip('${t.__id}')">View</button>
+        <button class="delete-btn rounded-lg border border-[#DDE3DD] px-3 py-2 text-sm font-semibold" onclick="deleteTrip('${t.__id}',this)">Delete</button>
+      </div>`;
+    list.appendChild(card);
+  });
+}
+
+function loadTrip(id){
+  const t=savedTrips.find(x=>x.__id===id);
+  if(!t) return;
+  currentTrip=t;
+  showView('result');
+  document.getElementById('generation-state').classList.add('hidden');
+  document.getElementById('itinerary-content').classList.remove('hidden');
+  renderItinerary();
+}
+
+async function deleteTrip(id,button){
+  if(button.dataset.confirm!=='yes'){
+    button.dataset.confirm='yes';
+    button.textContent='Confirm delete';
+    setTimeout(()=>{ if(button.isConnected){ button.dataset.confirm=''; button.textContent='Delete'; } },3000);
+    return;
+  }
+  button.disabled=true;
+  try{
+    await window.storage.delete(`trips:${id}`, false);
+    await loadSavedTrips();
+    toast('Trip deleted.');
+  }catch(e){
+    button.disabled=false;
+    button.textContent='Delete';
+    toast('Trip could not be deleted.');
+  }
+}
+
+document.getElementById('trip-start-date').value='2026-09-10';
+document.getElementById('trip-end-date').value='2026-09-12';
+renderDestinationStrip();
+hydrateImage(document.getElementById('hero-image'), 'Nilgiri Hills', 'India misty hills sunrise');
+loadSavedTrips();
+
+/* =====================================================================
+   YAATRA AI — mascot, travel directory, and the AI travel companion
+   ===================================================================== */
+
+/* ---------- 1. The Yaatra AI mascot (one character, many poses) ---------- */
+function mascotSVG(pose){
+  const earL=`<circle cx="42" cy="40" r="13" fill="#D9825B"/><circle cx="42" cy="40" r="6" fill="#F5F3ED"/>`;
+  const earR=`<circle cx="98" cy="40" r="13" fill="#D9825B"/><circle cx="98" cy="40" r="6" fill="#F5F3ED"/>`;
+  const head=`<circle cx="70" cy="58" r="34" fill="#D9825B"/><ellipse cx="70" cy="70" rx="19" ry="15" fill="#F8F1E4"/>`;
+  const hat=`<path d="M38 44 Q70 16 102 44 L100 50 Q70 30 40 50 Z" fill="#174C3C"/><circle cx="70" cy="36" r="5" fill="#E7B65A"/>`;
+  const eyes=`<g class="mascot-blink"><circle cx="61" cy="58" r="4" fill="#26332E"/><circle cx="79" cy="58" r="4" fill="#26332E"/></g>`;
+  const cheeks=`<circle cx="53" cy="70" r="4" fill="#E7B65A" opacity=".45"/><circle cx="87" cy="70" r="4" fill="#E7B65A" opacity=".45"/>`;
+  const nose=`<ellipse cx="70" cy="68" rx="3" ry="2.4" fill="#26332E"/>`;
+  const body=`<rect x="38" y="88" width="64" height="42" rx="22" fill="#174C3C"/><path d="M45 90 L95 122" stroke="#E7B65A" stroke-width="4" stroke-linecap="round" opacity=".55"/>`;
+  const legs=`<ellipse cx="55" cy="132" rx="9" ry="6" fill="#0f3327"/><ellipse cx="85" cy="132" rx="9" ry="6" fill="#0f3327"/>`;
+  const armLBase=`<ellipse cx="34" cy="104" rx="10" ry="15" fill="#174C3C"/>`;
+  const armRBase=`<ellipse cx="106" cy="104" rx="10" ry="15" fill="#174C3C"/>`;
+  let extra='';
+  switch(pose){
+    case 'wave':
+      extra = `<g class="mascot-wave"><ellipse cx="103" cy="70" rx="9" ry="15" fill="#174C3C"/><circle cx="103" cy="52" r="8" fill="#D9825B"/></g>${armLBase}`;
+      break;
+    case 'binoculars':
+      extra = `${armLBase}${armRBase}<g transform="translate(70 62)"><rect x="-20" y="-8" width="16" height="16" rx="4" fill="#26332E"/><rect x="4" y="-8" width="16" height="16" rx="4" fill="#26332E"/><rect x="-6" y="-4" width="12" height="6" fill="#26332E"/><circle cx="-12" cy="0" r="4" fill="#5c8d82"/><circle cx="12" cy="0" r="4" fill="#5c8d82"/></g>`;
+      break;
+    case 'point':
+      extra = `${armLBase}<g transform="rotate(-24 106 100)"><ellipse cx="112" cy="92" rx="9" ry="16" fill="#174C3C"/><circle cx="118" cy="76" r="5" fill="#D9825B"/></g><path d="M124 74 L142 66" stroke="#E7B65A" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 6"/>`;
+      break;
+    case 'map':
+      extra = `${armLBase}${armRBase}<g transform="translate(70 108) rotate(-4)"><rect x="-22" y="-16" width="44" height="30" rx="3" fill="#F8F1E4" stroke="#174C3C" stroke-width="2"/><path d="M-22 -1 H22 M-4 -16 V14" stroke="#DDE3DD" stroke-width="1.5"/><circle cx="8" cy="-6" r="2.6" fill="#D9825B"/></g>`;
+      break;
+    case 'calculator':
+      extra = `${armLBase}<g transform="translate(88 104)"><rect x="0" y="-16" width="26" height="34" rx="4" fill="#F8F1E4" stroke="#174C3C" stroke-width="2"/><rect x="4" y="-11" width="18" height="7" rx="1.5" fill="#5c8d82"/>${[0,1,2].map(r=>[0,1,2].map(c=>`<circle cx="${8+c*7}" cy="${2+r*7}" r="1.6" fill="#174C3C"/>`).join('')).join('')}</g>`;
+      break;
+    case 'talk':
+      extra = `${armLBase}${armRBase}<g><path d="M96 30 q20 -4 22 14 q1 12 -12 14 l3 8 -11 -7 q-14 -2 -13 -14 q1 -13 11 -15 Z" fill="#fff" stroke="#DDE3DD" stroke-width="1.5"/><circle class="mascot-bubble-dot" cx="101" cy="45" r="2" fill="#174C3C"/><circle class="mascot-bubble-dot" cx="108" cy="45" r="2" fill="#174C3C"/><circle class="mascot-bubble-dot" cx="115" cy="45" r="2" fill="#174C3C"/></g>`;
+      break;
+    case 'suitcase':
+      extra = `${armLBase}<g transform="translate(96 112)"><rect x="0" y="0" width="30" height="24" rx="4" fill="#D9825B" stroke="#174C3C" stroke-width="2"/><rect x="10" y="-7" width="10" height="8" rx="2" fill="none" stroke="#174C3C" stroke-width="2"/><rect x="4" y="9" width="22" height="3" fill="#F8F1E4" opacity=".7"/></g>`;
+      break;
+    case 'food':
+      extra = `${armLBase}${armRBase}<g transform="translate(70 104)"><ellipse cx="0" cy="10" rx="20" ry="8" fill="#F8F1E4" stroke="#174C3C" stroke-width="2"/><path d="M-8 -6 q0 -8 0 -12 M0 -6 q0 -10 0 -14 M8 -6 q0 -8 0 -12" stroke="#DDE3DD" stroke-width="2" stroke-linecap="round" opacity=".8"/></g>`;
+      break;
+    case 'alert':
+      extra = `${armRBase}<g class="mascot-wave" transform="translate(0 0)"><ellipse cx="34" cy="88" rx="9" ry="16" fill="#174C3C"/><circle cx="30" cy="70" r="8" fill="#D9825B"/></g><g transform="translate(24 40)"><circle r="12" fill="#D9825B"/><rect x="-2" y="-7" width="4" height="9" rx="2" fill="#fff"/><circle cy="6" r="1.8" fill="#fff"/></g>`;
+      break;
+    case 'ready':
+      extra = `${armLBase}<g transform="translate(94 100) rotate(8)"><rect x="0" y="0" width="26" height="22" rx="4" fill="#E7B65A" stroke="#174C3C" stroke-width="2"/><rect x="8" y="-7" width="10" height="8" rx="2" fill="none" stroke="#174C3C" stroke-width="2"/></g>`;
+      break;
+    default:
+      extra = `${armLBase}${armRBase}`;
+  }
+  return `<svg viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Yaatra AI mascot">${extra}${body}${legs}${earL}${earR}${head}${hat}${eyes}${nose}${cheeks}</svg>`;
+}
+function renderAllMascots(){
+  document.querySelectorAll('[data-mascot]').forEach(el=>{
+    const size = el.getAttribute('data-mascot-size') || 48;
+    el.style.width = size+'px'; el.style.height = size+'px'; el.style.display='inline-block';
+    el.innerHTML = mascotSVG(el.getAttribute('data-mascot'));
+  });
+}
+
+/* ---------- 2. A small mock travel directory, grouped by destination ----------
+   This is demo data (not a live Places/Maps API). Yaatra AI is instructed to
+   recommend only from this directory rather than inventing real businesses. */
+const travelDirectory = {
+  'Coimbatore': apiService.places.map(p=>({...p, destination:'Coimbatore'})),
+  'Ooty': [
+    {name:'Ooty Lake', category:'attractions', price:30, rating:4.5, distance:1.8, address:'Ooty Lake Rd, Ooty', note:'Boating lake, best at sunrise'},
+    {name:'Doddabetta Peak', category:'attractions', price:20, rating:4.6, distance:9, address:'Doddabetta, Ooty', note:'Highest point in the Nilgiris'},
+    {name:'Rose Garden', category:'attractions', price:35, rating:4.3, distance:2.5, address:'Elk Hill, Ooty'},
+    {name:'The Nilgiri House', category:'hotels', price:3800, rating:4.8, distance:2.4, address:'Havelock Rd, Ooty', tier:'Premium'},
+    {name:'Hill Comfort Stay', category:'hotels', price:1400, rating:4.1, distance:1.5, address:'Charing Cross, Ooty', tier:'Budget'},
+    {name:'Nilgiri Mid Stay Inn', category:'hotels', price:2600, rating:4.4, distance:1.9, address:'Ettines Rd, Ooty', tier:'Mid-range'},
+    {name:'Shalimar Restaurant', category:'food', price:250, rating:4.4, distance:1.2, address:'Commercial Rd, Ooty', cuisine:'South Indian veg'},
+    {name:'Earl\'s Secret', category:'food', price:600, rating:4.5, distance:2, address:'Ettines Rd, Ooty', cuisine:'Continental, non-veg'},
+    {name:'Ooty Govt. Hospital', category:'health', price:0, rating:4.0, distance:1.5, address:'Hospital Rd, Ooty', open:'24 hours'},
+    {name:'Ooty Bus Stand Petrol Bunk', category:'transport', price:0, rating:4.0, distance:0.9, address:'Near Bus Stand, Ooty'},
+    {name:'Ooty Railway Station', category:'transport', price:0, rating:4.2, distance:1.1, address:'Station Rd, Ooty', note:'Nilgiri Mountain Railway'}
+  ],
+  'Kodaikanal': [
+    {name:'Kodai Lake', category:'attractions', price:0, rating:4.6, distance:1, address:'Lake Rd, Kodaikanal'},
+    {name:'Coaker\'s Walk', category:'attractions', price:20, rating:4.4, distance:2, address:'Coaker\'s Walk Rd, Kodaikanal'},
+    {name:'Carlton Heritage Stay', category:'hotels', price:4200, rating:4.7, distance:1.5, address:'Lake Rd, Kodaikanal', tier:'Premium'},
+    {name:'Greenlands Budget Rooms', category:'hotels', price:1200, rating:4.0, distance:1.8, address:'Coaker\'s Walk Rd, Kodaikanal', tier:'Budget'},
+    {name:'Cloud Nine Cafe', category:'food', price:300, rating:4.5, distance:1, address:'Bazaar Rd, Kodaikanal', cuisine:'Multi-cuisine veg'},
+    {name:'Kodai Govt. Hospital', category:'health', price:0, rating:3.9, distance:2.1, address:'Hospital Rd, Kodaikanal', open:'24 hours'}
+  ],
+  'Coorg': [
+    {name:'Abbey Falls', category:'attractions', price:30, rating:4.3, distance:5, address:'Abbey Falls Rd, Madikeri'},
+    {name:'Raja\'s Seat', category:'attractions', price:10, rating:4.5, distance:2, address:'Raja Seat Rd, Madikeri'},
+    {name:'Coffee Estate Homestay', category:'hotels', price:2800, rating:4.7, distance:6, address:'Madikeri Outskirts', tier:'Mid-range'},
+    {name:'Budget Backpackers Coorg', category:'hotels', price:1100, rating:4.0, distance:3, address:'Madikeri Town', tier:'Budget'},
+    {name:'Coorg Cuisine Corner', category:'food', price:350, rating:4.5, distance:1.5, address:'Madikeri Main Rd', cuisine:'Kodava'},
+    {name:'Madikeri District Hospital', category:'health', price:0, rating:3.9, distance:2, address:'Hospital Rd, Madikeri', open:'24 hours'}
+  ],
+  'Munnar': [
+    {name:'Eravikulam National Park', category:'attractions', price:125, rating:4.7, distance:15, address:'Eravikulam, Munnar'},
+    {name:'Mattupetty Dam', category:'attractions', price:20, rating:4.3, distance:13, address:'Mattupetty, Munnar'},
+    {name:'Tea Valley Resort', category:'hotels', price:4500, rating:4.8, distance:4, address:'Tea Estate Rd, Munnar', tier:'Premium'},
+    {name:'Misty Budget Homestay', category:'hotels', price:1300, rating:4.1, distance:2, address:'Munnar Town', tier:'Budget'},
+    {name:'Saravana Bhavan Munnar', category:'food', price:200, rating:4.3, distance:1, address:'Munnar Town', cuisine:'South Indian veg'},
+    {name:'Munnar Community Hospital', category:'health', price:0, rating:3.8, distance:2.5, address:'Munnar Town', open:'24 hours'}
+  ],
+  'Goa': [
+    {name:'Baga Beach', category:'attractions', price:0, rating:4.4, distance:3, address:'Baga, North Goa'},
+    {name:'Fort Aguada', category:'attractions', price:25, rating:4.5, distance:8, address:'Aguada Rd, Candolim'},
+    {name:'Sea Breeze Resort', category:'hotels', price:5200, rating:4.6, distance:1, address:'Calangute, Goa', tier:'Premium'},
+    {name:'Sunset Budget Stay', category:'hotels', price:1500, rating:4.0, distance:2, address:'Anjuna, Goa', tier:'Budget'},
+    {name:'Beach Shack Kitchen', category:'food', price:400, rating:4.4, distance:0.5, address:'Baga Beach Rd', cuisine:'Seafood, Goan'},
+    {name:'Goa Medical College Hospital', category:'health', price:0, rating:4.1, distance:6, address:'Bambolim, Goa', open:'24 hours'}
+  ]
+};
+function allDirectoryEntries(){
+  return Object.entries(travelDirectory).flatMap(([dest, list]) => list.map(p=>({...p, destination:p.destination||dest})));
+}
+
+/* ---------- 3. Budget tiers (used for both the AI prompt and quick estimates) ---------- */
+const BUDGET_TIERS = [
+  {name:'Budget', max:8000, split:{Accommodation:35,Food:25,Transport:25,Activities:15}},
+  {name:'Mid-range', max:20000, split:{Accommodation:42,Food:23,Transport:20,Activities:15}},
+  {name:'Premium', max:Infinity, split:{Accommodation:50,Food:20,Transport:15,'Activities & extras':15}}
+];
+function tierForBudget(amount){ return BUDGET_TIERS.find(t=>amount<=t.max) || BUDGET_TIERS[BUDGET_TIERS.length-1]; }
+
+/* ---------- 4. Lightweight grounding: find real (mock) listings relevant to a query ---------- */
+function findKnownDestination(text){
+  const t=text.toLowerCase();
+  const names = [...Object.keys(travelDirectory)];
+  return names.find(n=>t.includes(n.toLowerCase())) || (currentTrip && currentTrip.destination) || null;
+}
+function buildGroundingContext(userText){
+  const filters = parseQuery(userText);
+  const dest = findKnownDestination(userText);
+  let pool = dest ? (travelDirectory[dest]||[]).map(p=>({...p,destination:dest})) : allDirectoryEntries();
+  if(filters.category) pool = pool.filter(p=>p.category===filters.category);
+  return { destination: dest, places: pool.slice(0, 6) };
+}
+
+/* ---------- 5. Chat state ---------- */
+let chatDisplay = [];      // what's rendered: {role, text, cards}
+let chatApiHistory = [];   // exactly what is sent to / received from the API
+let yaatraOpen = false;
+let yaatraBusy = false;
+let yaatraLastError = null; // track the last error for debugging
+
+const YAATRA_SYSTEM_PROMPT = `You are Yaatra AI, the warm and practical travel-companion mascot for the Yaatra travel website (South India focused, currency ₹ INR).
+You are not a generic chatbot — you behave like a knowledgeable travel buddy who helps people discover places, plan trips, manage budgets, find hotels/restaurants/hospitals nearby, and build day-by-day itineraries.
+
+Rules:
+1. Ground every specific place, hotel, restaurant, or hospital name ONLY in the KNOWN_PLACES data given to you in the user's message. Never invent real-world business names, addresses, or ratings. If KNOWN_PLACES has nothing relevant, say so honestly and give general (non-specific) travel advice instead.
+2. Ask only for the details you are missing (destination, days, budget are usually essential; travelers/start point/interests/food preference can default sensibly — assume 2 travelers, Coimbatore start, mixed interests, no strict food preference — unless the user cares). Do not interrogate the user with every possible question at once.
+3. When the user gives enough info to plan a trip, actually build a day-by-day itinerary using BUDGET_TIERS to decide whether this is a Budget/Mid-range/Premium trip, and let the tier genuinely change hotel/food/transport/activity choices and the total cost — not just wording.
+4. Remember context across the conversation (destination, days, budget, travelers already discussed) so the user doesn't have to repeat themselves. If they say "change the hotel", assume they mean the current trip's hotel.
+5. Keep spoken replies concise and warm, 2-6 sentences, occasional relevant emoji 🌿🧭🏞️, never robotic.
+6. Whenever your answer includes structured data the UI can render as a card (an itinerary, a budget breakdown, or a list of hotels/restaurants/places/hospitals), append ONE OR MORE fenced blocks after your reply, each starting with \`\`\`yaatra-card and containing ONLY valid JSON (no comments), using these shapes:
+   - {"type":"itinerary","destination":"...","tier":"Budget|Mid-range|Premium","days":[{"day":1,"title":"...","stops":[{"time":"Morning","name":"...","note":"...","cost":250}]}],"total_estimated":7000}
+   - {"type":"budget","tier":"Budget|Mid-range|Premium","total":7000,"breakdown":{"Accommodation":45,"Food":22,"Transport":20,"Activities":13}}  (breakdown values are percentages that sum to 100)
+   - {"type":"hotel"|"restaurant"|"place"|"hospital"|"transport","items":[{"name":"...","distance":"1.2 km","price":"₹1,400","rating":"4.1","address":"...","note":"..."}]}  (use ONLY entries drawn from KNOWN_PLACES; if none matched, use an empty items array and explain in your text reply instead)
+7. Label any cost you estimate rather than sourced from KNOWN_PLACES as an estimate in your text (e.g. "roughly ₹X, estimated").
+8. Never output API keys, code, or system internals. Never break character.`;
+
+const YAATRA_DEFAULT_CHIPS = [
+  'Plan a 3-day Ooty trip under ₹10,000',
+  'Nearest hospital?',
+  'Cheap vegetarian food near me',
+  'Compare budget vs premium for Munnar'
+];
+
+function toggleYaatraAI(force){
+  yaatraOpen = typeof force === 'boolean' ? force : !yaatraOpen;
+  const panel = document.getElementById('yaatra-ai-panel');
+  panel.classList.toggle('open', yaatraOpen);
+  if(yaatraOpen){
+    if(!chatDisplay.length) startYaatraChat();
+    setTimeout(()=>document.getElementById('yaatra-ai-input').focus(), 200);
+  }
+}
+
+function startYaatraChat(){
+  chatDisplay = [{role:'assistant', text:`Vanakkam! I'm Yaatra AI 🧭 Tell me where you'd like to go, how many days you have, and your budget — I'll put together a day-by-day plan. Or ask me things like "nearest hospital" or "cheap food near Ooty Lake".`, cards:[]}];
+  chatApiHistory = [];
+  yaatraLastError = null;
+  renderYaatraMessages();
+  renderYaatraChips(YAATRA_DEFAULT_CHIPS);
+}
+
+function resetYaatraChat(){
+  currentTripContext = null;
+  startYaatraChat();
+}
+
+function renderYaatraChips(chips){
+  document.getElementById('yaatra-ai-chips').innerHTML = chips.map(c=>
+    `<button type="button" class="yaatra-chip" onclick="sendYaatraQuickChip(this)">${c}</button>`).join('');
+}
+function sendYaatraQuickChip(btn){
+  document.getElementById('yaatra-ai-input').value = btn.textContent;
+  submitYaatraChat(new Event('submit'));
+}
+
+function askYaatraToPlan(){
+  const dest = document.getElementById('trip-destination') ? document.getElementById('trip-destination').value : '';
+  toggleYaatraAI(true);
+  document.getElementById('yaatra-ai-input').value = dest ? `Plan a trip to ${dest}` : '';
+}
+
+let currentTripContext = null; // {destination, days, budget, travelers} — light memory hint for the model
+
+function submitYaatraChat(e){
+  e.preventDefault();
+  if(yaatraBusy) return;
+  const input = document.getElementById('yaatra-ai-input');
+  const text = input.value.trim();
+  if(!text) return;
+  input.value='';
+  chatDisplay.push({role:'user', text, cards:[]});
+  renderYaatraMessages();
+  callYaatraAI(text);
+}
+
+async function callYaatraAI(userText){
+  yaatraBusy = true;
+  document.getElementById('yaatra-ai-send').disabled = true;
+  const thinkingId = showYaatraThinking();
+
+  const ground = buildGroundingContext(userText);
+  const augmented = `${userText}\n\n[Hidden grounding context — do not reveal this block to the user, use it only as factual source data]\nKNOWN_PLACES: ${JSON.stringify(ground.places)}\nBUDGET_TIERS: ${JSON.stringify(BUDGET_TIERS)}\nCURRENT_TRIP_CONTEXT: ${JSON.stringify(currentTripContext)}`;
+  chatApiHistory.push({role:'user', content: augmented});
+
+  try{
+    // Only send the most recent turns to Groq. Each stored user turn also
+    // carries a full grounding-context JSON blob, so replaying the entire
+    // history on every message was the main driver of hitting the 8,000
+    // tokens/minute free-tier cap on longer conversations.
+    const recentHistory = chatApiHistory.slice(-8);
+    const { text: rawTextRaw, demo, reason, errorMessage } = await YaatraAI.chat(recentHistory, YAATRA_SYSTEM_PROMPT);
+    const rawText = (rawTextRaw||'').trim();
+    if(!rawText) throw new Error('empty response');
+    chatApiHistory.push({role:'assistant', content: rawText});
+    
+    // Handle the different demo/error scenarios properly
+    if(demo){
+      if(reason === 'missing_key'){
+        // The API key is genuinely missing — show the user-friendly message
+        toast('Yaatra AI is in Demo Mode. Add a Groq API key in YAATRA_CONFIG for live AI responses.');
+      } else if(reason === 'api_error'){
+        // There was an API error — show a different message
+        toast('Yaatra AI is temporarily unavailable. Check the console for details.');
+        console.error('Yaatra AI API error:', errorMessage);
+      } else if(reason === 'service_unavailable') {
+        toast('Yaatra AI is temporarily unavailable. Try again shortly.');
+      } else if(reason === 'authentication_error') {
+        toast('Yaatra AI authentication failed. Check the server Groq key.');
+      } else if(reason === 'rate_limit') {
+        toast('Yaatra AI rate limit reached. Please try again shortly.');
+      } else {
+        toast('Yaatra AI returned an error. Please try again.');
+      }
+    }
+
+    if(ground.destination) currentTripContext = {...(currentTripContext||{}), destination: ground.destination};
+    const { cleanText, cards } = extractYaatraCards(rawText);
+    cards.forEach(c=>{
+      if(c.type==='itinerary'){ currentTripContext = {...(currentTripContext||{}), destination:c.destination, tier:c.tier, budget:c.total_estimated}; }
+      if(c.type==='budget'){ currentTripContext = {...(currentTripContext||{}), budget:c.total, tier:c.tier}; }
+    });
+
+    removeYaatraThinking(thinkingId);
+    chatDisplay.push({role:'assistant', text: cleanText, cards});
+    renderYaatraMessages();
+    renderYaatraChips(cards.some(c=>c.type==='itinerary') ? ['Save this trip','Make it more budget-friendly','Make it more premium','Change the hotel'] : YAATRA_DEFAULT_CHIPS);
+  }catch(err){
+    removeYaatraThinking(thinkingId);
+    chatDisplay.push({role:'assistant', text:'Sorry, I had trouble reaching Yaatra AI just now. Please try again in a moment. If the problem persists, check the browser console for error details.', cards:[]});
+    renderYaatraMessages();
+    console.error('Yaatra AI error:', err);
+  }finally{
+    yaatraBusy = false;
+    document.getElementById('yaatra-ai-send').disabled = false;
+  }
+}
+
+function extractYaatraCards(rawText){
+  const cards=[];
+  const cleanText = rawText.replace(/```yaatra-card([\s\S]*?)```/g, (m, jsonBlock)=>{
+    try{ cards.push(JSON.parse(jsonBlock.trim())); }catch(e){}
+    return '';
+  }).trim();
+  return { cleanText, cards };
+}
+
+/* ---------- Demo Mode brain: rule-based stand-in for Groq ----------
+   Used automatically whenever GROQ_API_KEY is a placeholder or the live
+   call fails, so planning/chat/recommendations/budget analysis keep working
+   fully offline. It reuses the same grounding directory + budget tiers so
+   Demo Mode answers stay consistent with what the live model would say. */
+function demoAIResponse(history){
+  const lastUser = [...history].reverse().find(m=>m.role==='user');
+  const raw = lastUser ? lastUser.content : '';
+  const userText = raw.split('\n\n[Hidden grounding context')[0];
+  const ground = buildGroundingContext(userText);
+  const filters = parseQuery(userText);
+  const budgetGuess = Number((userText.match(/under\s*₹?\s*(\d{3,7})/i)||[])[1]) || (currentTripContext&&currentTripContext.budget) || 10000;
+  const daysGuess = Number((userText.match(/(\d+)\s*[- ]?day/i)||[])[1]) || 3;
+  const wantsPlan = /plan|itinerary|trip/i.test(userText) && ground.destination;
+
+  if(wantsPlan){
+    const tier = tierForBudget(budgetGuess);
+    const dest = ground.destination;
+    const pool = travelDirectory[dest]||[];
+    const hotels = pool.filter(p=>p.category==='hotels');
+    const food = pool.filter(p=>p.category==='food');
+    const attractions = pool.filter(p=>p.category==='attractions');
+    const hotel = hotels.find(h=>h.tier===tier.name) || hotels[0];
+    const dailyBudget = Math.max(500, Math.round(budgetGuess/daysGuess));
+    const days = Array.from({length:daysGuess},(_,i)=>({
+      day:i+1,
+      title: i===0 ? `Arrive in ${dest}` : i===daysGuess-1 ? 'Last day & departure' : `Explore ${dest}`,
+      stops:[
+        {time:'Morning', name: (attractions[i%Math.max(attractions.length,1)]||{}).name || `Explore central ${dest}`, note:'Estimated', cost:Math.round(dailyBudget*0.15)},
+        {time:'Afternoon', name: (food[i%Math.max(food.length,1)]||{}).name || 'Local lunch spot', note:(food[i%Math.max(food.length,1)]||{}).cuisine||'Estimated', cost:Math.round(dailyBudget*0.25)},
+        {time:'Evening', name: hotel ? hotel.name : `Stay in ${dest}`, note: hotel ? `Stay · ₹${hotel.price}/night` : 'Estimated', cost: i<daysGuess-1 ? (hotel ? hotel.price : Math.round(dailyBudget*0.4)) : 0}
+      ]
+    }));
+    const total = days.reduce((s,d)=>s+d.stops.reduce((s2,st)=>s2+(st.cost||0),0),0);
+    const text = `Here's a ${tier.name.toLowerCase()} plan for ${dest} (${daysGuess} day${daysGuess>1?'s':''}). I'm in Demo Mode right now since Yaatra AI isn't connected to a live Groq key — add one in the setup guide for richer, live planning. 🧭`;
+    return text
+      + '\n```yaatra-card\n'+JSON.stringify({type:'itinerary', destination:dest, tier:tier.name, days, total_estimated: total})+'\n```'
+      + '\n```yaatra-card\n'+JSON.stringify({type:'budget', tier:tier.name, total, breakdown:tier.split})+'\n```';
+  }
+
+  if(ground.places.length){
+    const cat = filters.category || ground.places[0].category || 'place';
+    const cardType = {food:'restaurant', health:'hospital', hotels:'hotel', attractions:'place', transport:'transport'}[cat] || 'place';
+    const items = ground.places.slice(0,5).map(p=>({name:p.name, distance:`${p.distance} km`, price:p.price?`₹${p.price}`:'Free', rating:String(p.rating||''), address:p.address||'', note:p.note||p.cuisine||''}));
+    const text = `Here's what I found${ground.destination?` in ${ground.destination}`:' nearby'} — Demo Mode, drawing from Yaatra's own directory since no live Groq key is connected.`;
+    return text + '\n```yaatra-card\n'+JSON.stringify({type:cardType, items})+'\n```';
+  }
+
+  return `I'm in Demo Mode right now (no live GROQ_API_KEY configured), so I can only work from Yaatra's sample directory — try Ooty, Kodaikanal, Coorg, Munnar, Goa or Coimbatore. Tell me a destination, your days and budget and I'll sketch a plan. 🌿`;
+}
+
+function showYaatraThinking(){
+  const id = 'think-'+Date.now();
+  const wrap = document.getElementById('yaatra-ai-messages');
+  const row = document.createElement('div');
+  row.className='yaatra-msg-row ai';
+  row.id = id;
+  row.innerHTML = `<div class="mascot-think" data-mascot="talk" data-mascot-size="30"></div>
+    <div class="yaatra-bubble ai flex items-center gap-1">
+      <span class="mascot-bubble-dot inline-block w-1.5 h-1.5 rounded-full bg-[#718078]"></span>
+      <span class="mascot-bubble-dot inline-block w-1.5 h-1.5 rounded-full bg-[#718078]"></span>
+      <span class="mascot-bubble-dot inline-block w-1.5 h-1.5 rounded-full bg-[#718078]"></span>
+    </div>`;
+  wrap.appendChild(row);
+  renderAllMascots();
+  wrap.scrollTop = wrap.scrollHeight;
+  return id;
+}
+function removeYaatraThinking(id){ const el=document.getElementById(id); if(el) el.remove(); }
+
+function renderYaatraMessages(){
+  const wrap = document.getElementById('yaatra-ai-messages');
+  wrap.innerHTML = chatDisplay.map((m,i)=>`
+    <div class="yaatra-msg-row ${m.role==='user'?'user':'ai'}">
+      ${m.role==='ai'||m.role==='assistant' ? `<div class="shrink-0" data-mascot="talk" data-mascot-size="30"></div>` : ''}
+      <div>
+        <div class="yaatra-bubble ${m.role==='user'?'user':'ai'}">${escapeHtml(m.text)}</div>
+        ${(m.cards||[]).map(c=>renderYaatraCard(c,i)).join('')}
+      </div>
+    </div>`).join('');
+  renderAllMascots();
+  wrap.scrollTop = wrap.scrollHeight;
+  if(window.lucide) lucide.createIcons();
+}
+
+function escapeHtml(str){
+  const div=document.createElement('div'); div.textContent=str; return div.innerHTML;
+}
+
+function renderYaatraCard(card, msgIndex){
+  if(card.type==='itinerary'){
+    return `<div class="yaatra-card">
+      <div class="flex items-center justify-between gap-2">
+        <span class="yaatra-card-title">📅 ${card.destination||''} itinerary</span>
+        <span class="yaatra-badge">${card.tier||'Estimated'}</span>
+      </div>
+      ${(card.days||[]).map(d=>`
+        <div class="yaatra-day-block">
+          <p class="text-xs font-bold uppercase tracking-wide text-[#D9825B]">Day ${d.day} · ${d.title||''}</p>
+          <ul class="mt-1 space-y-1 text-sm text-[#26332E]">
+            ${(d.stops||[]).map(s=>`<li class="flex justify-between gap-3"><span>${s.time?`<strong class="text-[#718078] font-normal">${s.time}:</strong> `:''}${s.name}${s.note?' — '+s.note:''}</span>${s.cost?`<span class="whitespace-nowrap font-semibold text-[#174C3C]">₹${Number(s.cost).toLocaleString('en-IN')}</span>`:''}</li>`).join('')}
+          </ul>
+        </div>`).join('')}
+      <div class="mt-3 flex items-center justify-between gap-3 pt-3 border-t border-[#DDE3DD]">
+        <span class="font-bold text-[#174C3C]">Total (estimated): ₹${Number(card.total_estimated||0).toLocaleString('en-IN')}</span>
+        <button type="button" class="rounded-lg bg-[#174C3C] px-3 py-1.5 text-xs font-semibold text-white" onclick="saveYaatraItinerary(${msgIndex}, this)">Save to My Trips</button>
+      </div>
+    </div>`;
+  }
+  if(card.type==='budget'){
+    return `<div class="yaatra-card">
+      <div class="flex items-center justify-between gap-2">
+        <span class="yaatra-card-title">💰 Budget breakdown</span>
+        <span class="yaatra-badge">${card.tier||''}</span>
+      </div>
+      <p class="mt-1 text-xl font-bold text-[#174C3C]">₹${Number(card.total||0).toLocaleString('en-IN')}</p>
+      <div class="mt-3 space-y-2">
+        ${Object.entries(card.breakdown||{}).map(([label,pct])=>`
+          <div><div class="flex justify-between text-xs mb-1"><span>${label}</span><span>${pct}%</span></div>
+          <div class="h-1.5 rounded-full bg-[#E8F0EA] overflow-hidden"><div class="h-full rounded-full bg-[#174C3C]" style="width:${pct}%"></div></div></div>`).join('')}
+      </div>
+    </div>`;
+  }
+  if(['hotel','restaurant','place','hospital','transport'].includes(card.type)){
+    const icon = {hotel:'🏨',restaurant:'🍴',place:'📍',hospital:'🏥',transport:'🚉'}[card.type];
+    const items = card.items||[];
+    if(!items.length) return `<div class="yaatra-card text-sm text-[#718078]">${icon} No matching listings in our current directory for this.</div>`;
+    return `<div class="yaatra-card space-y-3">
+      ${items.map(it=>`
+        <div class="flex items-start justify-between gap-3 ${items.indexOf(it)>0?'pt-3 border-t border-[#DDE3DD]':''}">
+          <div>
+            <p class="font-bold text-[#174C3C]">${icon} ${it.name}</p>
+            <p class="text-xs text-[#718078] mt-0.5">${[it.distance, it.address].filter(Boolean).join(' · ')}</p>
+            ${it.note?`<p class="text-xs text-[#718078] mt-0.5">${it.note}</p>`:''}
+          </div>
+          <div class="text-right shrink-0">
+            ${it.price?`<p class="text-sm font-semibold text-[#174C3C]">${it.price}</p>`:''}
+            ${it.rating?`<p class="text-xs text-[#718078]">★ ${it.rating}</p>`:''}
+          </div>
+        </div>`).join('')}
+    </div>`;
+  }
+  return '';
+}
+
+async function saveYaatraItinerary(msgIndex, button){
+  const card = (chatDisplay[msgIndex].cards||[]).find(c=>c.type==='itinerary');
+  if(!card) return;
+  button.disabled = true;
+  button.textContent = 'Saving…';
+  const trip = {
+    trip_name: `${card.destination||'Trip'} plan (Yaatra AI)`,
+    destination: card.destination||'',
+    travelers: (currentTripContext && currentTripContext.travelers) || 2,
+    budget: card.total_estimated || 0,
+    transport: 'As suggested by Yaatra AI',
+    source: 'yaatra-ai',
+    itinerary: (card.days||[]).map(d=>({
+      day:d.day, title:d.title||'',
+      stops:(d.stops||[]).map(s=>({name: s.time ? `${s.time}: ${s.name}${s.note?' — '+s.note:''}` : `${s.name}${s.note?' — '+s.note:''}`, amount:s.cost||0}))
+    }))
+  };
+  const budgetCard = chatDisplay[msgIndex].cards.find(c=>c.type==='budget');
+  if(budgetCard) trip.budget_breakdown = budgetCard.breakdown;
+  try{
+    const id = `trip_${Date.now()}`;
+    trip.__id = id;
+    const result = await window.storage.set(`trips:${id}`, JSON.stringify(trip));
+    if(result){
+      button.textContent = 'Saved ✓';
+      toast('Trip saved to My Trips.');
+      await loadSavedTrips();
+    } else throw new Error('no result');
+  }catch(err){
+    button.disabled = false;
+    button.textContent = 'Save to My Trips';
+    toast('Could not save this trip. Please try again.');
+  }
+}
+
+/* =====================================================================
+   TOOLS SUITE — currency converter, translator, lens scanner, travel
+   calendar, vehicle rental, expense tracker, emergency support, plus
+   geolocation reverse-geocoding, Nominatim autocomplete and OSRM
+   routing. Every tool is demo-mode-first (works with bundled fallback
+   data/logic) and automatically upgrades to a live API call once a
+   real key is present in YAATRA_CONFIG.
+   ===================================================================== */
+
+/* ---------- Currency converter ---------- */
+const DEMO_RATES_INR = { INR:1, USD:83.4, EUR:90.2, GBP:105.8, AED:22.7, SGD:61.9, AUD:54.6, JPY:0.56 };
+const CURRENCY_LIST = Object.keys(DEMO_RATES_INR);
+function initCurrencyTool(){
+  const from = document.getElementById('cur-from'), to = document.getElementById('cur-to');
+  if(!from.options.length){
+    from.innerHTML = CURRENCY_LIST.map(c=>`<option ${c==='USD'?'selected':''}>${c}</option>`).join('');
+    to.innerHTML = CURRENCY_LIST.map(c=>`<option ${c==='INR'?'selected':''}>${c}</option>`).join('');
+  }
+  document.getElementById('currency-status').innerHTML = '<span class="live-badge">Backend rates</span>';
+}
+function swapCurrency(){
+  const from=document.getElementById('cur-from'), to=document.getElementById('cur-to');
+  const tmp=from.value; from.value=to.value; to.value=tmp;
+}
+async function convertCurrency(e){
+  if(e&&e.preventDefault) e.preventDefault();
+  const amount=Number(document.getElementById('cur-amount').value);
+  const from=document.getElementById('cur-from').value, to=document.getElementById('cur-to').value;
+  const result=document.getElementById('currency-result'), loading=document.getElementById('currency-loading'), errorBox=document.getElementById('currency-error');
+  result.classList.add('hidden'); errorBox.classList.add('hidden'); loading.classList.remove('hidden');
+  try{
+    let rate, live=true;
+    try {
+      const res = await fetch(`${YAATRA_CONFIG.API_BASE}/currency/${from}/${to}`);
+      if(!res.ok) throw new Error('backend rate lookup failed');
+      const data = await res.json(); rate = Number(data.rate); live = Boolean(data.live);
+    } catch(providerError) {
+      if(!DEMO_RATES_INR[from]||!DEMO_RATES_INR[to]) throw providerError;
+      rate = DEMO_RATES_INR[from]/DEMO_RATES_INR[to]; live=false;
+    }
+    loading.classList.add('hidden');
+    document.getElementById('currency-result-text').textContent = `${amount.toLocaleString()} ${from} ≈ ${(amount*rate).toLocaleString(undefined,{maximumFractionDigits:2})} ${to}`;
+    document.getElementById('currency-result-rate').textContent = `1 ${from} = ${rate.toFixed(4)} ${to}${live?'':' (fallback rate)'}`;
+    result.classList.remove('hidden');
+  }catch(err){
+    loading.classList.add('hidden');
+    errorBox.textContent = 'Could not fetch a rate for that pair — try again, or check CURRENCY_API_KEY.';
+    errorBox.classList.remove('hidden');
+  }
+}
+
+/* ---------- Translator ---------- */
+const PHRASEBOOK = [
+  {en:'Hello', ta:'Vanakkam', hi:'Namaste', kn:'Namaskara', ml:'Namaskaram'},
+  {en:'Thank you', ta:'Nandri', hi:'Dhanyavaad', kn:'Dhanyavaadagalu', ml:'Nandi'},
+  {en:'Where is the bus stop?', ta:'Bus stop enge?', hi:'Bus stop kahan hai?', kn:'Bus stop elli ide?', ml:'Bus stop evide?'},
+  {en:'How much does this cost?', ta:'Idhu evvalavu?', hi:'Yeh kitne ka hai?', kn:'Idhu eshtu?', ml:'Ithinu evide vila?'},
+  {en:'I need help', ta:'Enakku udhavi vendum', hi:'Mujhe madad chahiye', kn:'Nanage sahaya beku', ml:'Enikku sahayam venam'},
+  {en:'Where is the nearest hospital?', ta:'Arugil irukkum hospital enge?', hi:'Sabse paas ka hospital kahan hai?', kn:'Hattira aspatre elli ide?', ml:'Aduthulla hospital evide?'}
+];
+function renderPhrasebook(){
+  document.getElementById('phrasebook-list').innerHTML = PHRASEBOOK.map(p=>`
+    <button type="button" class="text-left rounded-xl border border-[#DDE3DD] p-3 hover:border-[#D9825B]" onclick="usePhrasebookEntry(${JSON.stringify(p.en)})">
+      <span class="block text-xs text-[#718078]">${p.en}</span>
+      <span class="block font-semibold text-[#174C3C]">${p.ta}</span>
+    </button>`).join('');
+}
+function usePhrasebookEntry(en){
+  document.getElementById('trans-input').value = en;
+  document.getElementById('trans-source').value='en';
+}
+async function translateText(e){
+  if(e&&e.preventDefault) e.preventDefault();
+  const text=document.getElementById('trans-input').value.trim();
+  const source=document.getElementById('trans-source').value, target=document.getElementById('trans-target').value;
+  const result=document.getElementById('translator-result'), loading=document.getElementById('translator-loading'), errorBox=document.getElementById('translator-error');
+  result.classList.add('hidden'); errorBox.classList.add('hidden'); loading.classList.remove('hidden');
+  document.getElementById('translator-status').innerHTML = '<span class="live-badge">Backend translation</span>';
+  try{
+    let translated;
+    try {
+      const res = await fetch(`${YAATRA_CONFIG.API_BASE}/translate`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text,source,target})});
+      if(!res.ok) throw new Error('translation unavailable');
+      const data = await res.json(); translated = data.text;
+      if(!translated) throw new Error('translation unavailable');
+    } catch(providerError) {
+      const match = PHRASEBOOK.find(p=>p.en.toLowerCase()===text.toLowerCase());
+      translated = (match && match[target]) ? match[target] : `Fallback phrasebook: ${PHRASEBOOK[0].en}`;
+      document.getElementById('translator-status').innerHTML = '<span class="demo-badge">Fallback · phrasebook</span>';
+    }
+    loading.classList.add('hidden');
+    document.getElementById('translator-result-text').textContent = translated;
+    result.classList.remove('hidden');
+  }catch(err){
+    loading.classList.add('hidden');
+    errorBox.textContent = 'Translation failed — please try again.';
+    errorBox.classList.remove('hidden');
+  }
+}
+
+/* ---------- Lens scanner (OCR / object detection) ---------- */
+async function handleScanImage(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const canvas=document.getElementById('scan-canvas');
+  const result=document.getElementById('scanner-result'), loading=document.getElementById('scanner-loading'), errorBox=document.getElementById('scanner-error');
+  result.classList.add('hidden'); errorBox.classList.add('hidden');
+  document.getElementById('scanner-status').innerHTML = isPlaceholder(YAATRA_CONFIG.GOOGLE_VISION_API_KEY)
+    ? '<span class="demo-badge">Demo mode · on-device analysis</span>' : '<span class="live-badge">Live Vision AI</span>';
+  const dataUrl = await new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.readAsDataURL(file); });
+  const img = new Image();
+  img.onload = async ()=>{
+    canvas.width = img.width; canvas.height = img.height;
+    canvas.classList.remove('hidden');
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img,0,0);
+    loading.classList.remove('hidden');
+    try{
+      try {
+        const res = await fetch(`${YAATRA_CONFIG.API_BASE}/vision/ocr`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageBase64:dataUrl})});
+        if(!res.ok) throw new Error('Vision API unavailable');
+        const data = await res.json();
+        const text = data.text || '';
+        const labels = data.labels || [];
+        loading.classList.add('hidden');
+        result.innerHTML = `<p class="font-editorial text-xl text-[#174C3C]">Detected</p>
+          ${labels.length?`<p class="mt-2 text-sm text-[#718078]">Objects: ${labels.join(', ')}</p>`:''}
+          ${text?`<p class="mt-3 whitespace-pre-wrap">${escapeHtml(text)}</p>`:'<p class="mt-3 text-[#718078]">No readable text found.</p>'}`;
+        result.classList.remove('hidden');
+      } catch(providerError) {
+        document.getElementById('scanner-status').innerHTML = '<span class="demo-badge">Fallback · local image analysis</span>';
+        const {avg, edges} = analyzeCanvasDemo(ctx, canvas.width, canvas.height);
+        loading.classList.add('hidden');
+        result.innerHTML = `<p class="font-editorial text-xl text-[#174C3C]">Demo analysis (live photo)</p>
+          <p class="mt-2 text-sm text-[#718078]">Connect GOOGLE_VISION_API_KEY for real OCR/object detection. From your photo's pixels: average tone rgb(${avg.join(',')}), estimated detail level "${edges}".</p>
+          <p class="mt-3 text-[#718078]">Tip: point the camera at a sign or menu, then add a live key to get real text extraction here.</p>`;
+        result.classList.remove('hidden');
+      }
+    }catch(err){
+      loading.classList.add('hidden');
+      errorBox.textContent = 'Scan failed — please try another photo.';
+      errorBox.classList.remove('hidden');
+    }
+  };
+  img.src = dataUrl;
+}
+function analyzeCanvasDemo(ctx,w,h){
+  const data = ctx.getImageData(0,0,w,h).data;
+  let r=0,g=0,b=0,n=0,edgeCount=0;
+  for(let i=0;i<data.length;i+=400){ r+=data[i]; g+=data[i+1]; b+=data[i+2]; n++; if(i>400 && Math.abs(data[i]-data[i-400])>40) edgeCount++; }
+  n = Math.max(n,1);
+  return { avg:[Math.round(r/n),Math.round(g/n),Math.round(b/n)], edges: edgeCount>n*0.15?'high':edgeCount>n*0.05?'medium':'low' };
+}
+
+/* ---------- Travel calendar (linked to saved itineraries) ---------- */
+let calCursor = new Date();
+function calendarShift(delta){ calCursor.setMonth(calCursor.getMonth()+delta); initCalendar(); }
+function initCalendar(){
+  document.getElementById('cal-month-label').textContent = calCursor.toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  const year=calCursor.getFullYear(), month=calCursor.getMonth();
+  const firstDay = new Date(year,month,1).getDay();
+  const daysInMonth = new Date(year,month+1,0).getDate();
+  const tripsWithDates = savedTrips.filter(t=>t.start_date && t.end_date);
+  document.getElementById('cal-empty').classList.toggle('hidden', tripsWithDates.length>0);
+  let cells='';
+  for(let i=0;i<firstDay;i++) cells+='<div class="cal-cell empty"></div>';
+  for(let d=1; d<=daysInMonth; d++){
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const trip = tripsWithDates.find(t=>dateStr>=t.start_date && dateStr<=t.end_date);
+    cells += `<button type="button" class="cal-cell ${trip?'has-plan':''}" onclick="showCalDay('${dateStr}')">${d}${trip?'<span class="dot"></span>':''}</button>`;
+  }
+  document.getElementById('cal-grid').innerHTML = cells;
+  document.getElementById('cal-day-detail').classList.add('hidden');
+}
+function showCalDay(dateStr){
+  const trip = savedTrips.find(t=>t.start_date && t.end_date && dateStr>=t.start_date && dateStr<=t.end_date);
+  const box = document.getElementById('cal-day-detail');
+  if(!trip){ box.classList.add('hidden'); return; }
+  const dayIndex = Math.round((new Date(dateStr)-new Date(trip.start_date))/86400000);
+  const day = (trip.itinerary||[])[dayIndex];
+  box.innerHTML = `<p class="text-sm font-bold uppercase tracking-wide text-[#D9825B]">${dateStr}</p>
+    <h3 class="mt-1 font-editorial text-xl text-[#174C3C]">${trip.trip_name}${day?' · '+day.title:''}</h3>
+    ${day ? `<ul class="mt-3 space-y-1 text-[#718078]">${day.stops.map(s=>`<li>• ${s.name}${s.amount?` — ₹${Number(s.amount).toLocaleString('en-IN')}`:''}</li>`).join('')}</ul>` : '<p class="mt-2 text-[#718078]">No day-by-day detail saved for this date.</p>'}
+    <button class="mt-4 text-sm font-semibold text-[#174C3C] underline underline-offset-4" onclick="loadTrip('${trip.__id}')">Open full itinerary</button>`;
+  box.classList.remove('hidden');
+}
+
+/* ---------- Vehicle rental (demo fleet, linked to expenses) ---------- */
+const VEHICLE_FLEET = [
+  {id:'v1', name:'Honda Activa', type:'Scooter', pricePerDay:400, seats:2},
+  {id:'v2', name:'Royal Enfield Classic 350', type:'Motorbike', pricePerDay:900, seats:2},
+  {id:'v3', name:'Maruti Suzuki Swift', type:'Hatchback', pricePerDay:1800, seats:4},
+  {id:'v4', name:'Toyota Innova Crysta', type:'SUV', pricePerDay:3500, seats:6},
+  {id:'v5', name:'Mahindra Thar', type:'SUV (4x4)', pricePerDay:3200, seats:4},
+  {id:'v6', name:'Tempo Traveller', type:'Group van', pricePerDay:5500, seats:12}
+];
+function renderVehicles(){
+  document.getElementById('vehicle-list').innerHTML = VEHICLE_FLEET.map((v,i)=>`
+    <article class="rounded-3xl border border-[#DDE3DD] bg-white overflow-hidden">
+      <span class="img-placeholder h-40 w-full block">
+        <img id="veh-img-${i}" class="h-40 w-full object-cover hidden" loading="lazy" alt="${v.name}" onload="this.classList.remove('hidden')">
+        <i data-lucide="car" class="w-7 h-7"></i>
+      </span>
+      <div class="p-5">
+        <p class="text-xs uppercase font-bold tracking-wider text-[#D9825B]">${v.type} · ${v.seats} seats</p>
+        <h3 class="mt-1 font-bold text-lg">${v.name}</h3>
+        <p class="mt-1 text-[#718078]">₹${v.pricePerDay.toLocaleString('en-IN')} / day <span class="demo-badge ml-1">Demo listing</span></p>
+        <button class="mt-4 w-full rounded-xl bg-[#174C3C] px-4 py-2.5 text-sm font-semibold text-white" type="button" onclick="bookVehicle('${v.id}')">Add to trip expenses</button>
+      </div>
+    </article>`).join('');
+  if(window.lucide) lucide.createIcons();
+  VEHICLE_FLEET.forEach((v,i)=>hydrateImage(document.getElementById(`veh-img-${i}`), v.name, v.type));
+}
+async function bookVehicle(id){
+  const v = VEHICLE_FLEET.find(x=>x.id===id);
+  if(!v) return;
+  await addExpenseRecord('Transport', v.pricePerDay, `${v.name} rental (1 day, demo booking)`);
+  toast(`${v.name} added to your expense tracker.`);
+}
+
+/* ---------- Expense tracker (linked to the active trip's budget) ---------- */
+function activeExpenseTrip(){ return currentTrip || savedTrips[0] || null; }
+async function renderExpenses(){
+  const trip = activeExpenseTrip();
+  document.getElementById('expense-trip-name').textContent = trip ? trip.trip_name : 'no trip selected — plan or open a trip first';
+  const tripId = trip ? (trip.__id || 'draft') : 'default';
+  const key = `expenses:${tripId}`;
+  let list = [];
+  try{ const r = await YaatraStore.get(key); if(r&&r.value) list = JSON.parse(r.value); }catch(e){}
+  const budget = trip ? Number(trip.budget||0) : 0;
+  const spent = list.reduce((s,x)=>s+Number(x.amount||0),0);
+  document.getElementById('expense-spent').textContent = `₹${spent.toLocaleString('en-IN')} spent`;
+  document.getElementById('expense-budget').textContent = `of ₹${budget.toLocaleString('en-IN')} budget`;
+  document.getElementById('expense-bar').style.width = budget ? Math.min(100, Math.round(spent/budget*100))+'%' : '0%';
+  const warn = document.getElementById('expense-warning');
+  if(budget && spent>budget){ warn.textContent = `You're ₹${(spent-budget).toLocaleString('en-IN')} over budget.`; warn.classList.remove('hidden'); }
+  else warn.classList.add('hidden');
+  const listBox = document.getElementById('expense-list');
+  document.getElementById('expense-empty').classList.toggle('hidden', list.length>0);
+  listBox.innerHTML = list.length ? list.slice().map((x,idx)=>idx).reverse().map(idx=>{
+    const x=list[idx];
+    return `<div class="expense-row"><div><p class="font-semibold">${x.category}</p><p class="text-xs text-[#718078]">${x.note||''}</p></div>
+      <div class="flex items-center gap-3"><span class="font-bold text-[#174C3C]">₹${Number(x.amount).toLocaleString('en-IN')}</span>
+      <button class="text-xs text-[#b44a36] font-semibold" onclick="deleteExpense(${idx})">Remove</button></div></div>`;
+  }).join('') : '';
+}
+async function addExpense(e){
+  e.preventDefault();
+  const category = document.getElementById('expense-category').value;
+  const amount = Number(document.getElementById('expense-amount').value);
+  const note = document.getElementById('expense-note').value.trim();
+  if(!amount || amount<=0) return;
+  await addExpenseRecord(category, amount, note);
+  document.getElementById('expense-form').reset();
+  toast('Expense added.');
+}
+async function addExpenseRecord(category, amount, note){
+  const trip = activeExpenseTrip();
+  const tripId = trip ? (trip.__id || 'draft') : 'default';
+  const key = `expenses:${tripId}`;
+  let list = [];
+  try{ const r = await YaatraStore.get(key); if(r&&r.value) list = JSON.parse(r.value); }catch(e){}
+  list.push({category, amount, note, ts:Date.now()});
+  await YaatraStore.set(key, JSON.stringify(list));
+  renderExpenses();
+}
+async function deleteExpense(idx){
+  const trip = activeExpenseTrip();
+  const tripId = trip ? (trip.__id || 'draft') : 'default';
+  const key = `expenses:${tripId}`;
+  let list = [];
+  try{ const r = await YaatraStore.get(key); if(r&&r.value) list = JSON.parse(r.value); }catch(e){}
+  list.splice(idx,1);
+  await YaatraStore.set(key, JSON.stringify(list));
+  renderExpenses();
+}
+
+/* ---------- Emergency support ---------- */
+function renderEmergencyHospitals(){
+  const hospitals = apiService.places.filter(p=>p.category==='health').sort((a,b)=>a.distance-b.distance);
+  document.getElementById('emergency-hospitals').innerHTML = hospitals.length ? hospitals.map(h=>`
+    <div class="flex items-center justify-between gap-3 rounded-2xl border border-[#DDE3DD] bg-white p-4">
+      <div><p class="font-bold text-[#174C3C]">${h.name}</p><p class="text-sm text-[#718078]">${h.distance} km away</p></div>
+      <button class="rounded-lg bg-[#174C3C] px-3 py-2 text-sm font-semibold text-white" onclick="openPlace('${h.id}')">View</button>
+    </div>`).join('') : '<p class="text-[#718078]">No hospitals in the current directory.</p>';
+}
+function shareLiveLocation(){
+  if(!navigator.geolocation){ toast('Location is unavailable on this device.'); return; }
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    const link = `https://www.openstreetmap.org/?mlat=${pos.coords.latitude}&mlon=${pos.coords.longitude}#map=16/${pos.coords.latitude}/${pos.coords.longitude}`;
+    try{
+      if(navigator.share){ await navigator.share({title:'My live location', text:'Here is my current location', url:link}); }
+      else { await navigator.clipboard.writeText(link); toast('Location link copied — paste it to share.'); }
+    }catch(e){ toast('Could not share your location.'); }
+  }, ()=>toast('Location permission was not granted.'), {timeout:8000});
+}
+
+/* ---------- Nominatim autocomplete for the planner's starting point ---------- */
+let tripStartCoords = null;
+let _startSuggestions = [];
+function wireStartAutocomplete(){
+  const input = document.getElementById('trip-start');
+  if(!input || input.dataset.wired) return;
+  input.dataset.wired='1';
+  input.parentElement.classList.add('autocomplete-wrap');
+  input.insertAdjacentHTML('afterend', '<div id="trip-start-suggestions" class="autocomplete-list hidden"></div>');
+  let debounceTimer;
+  input.addEventListener('input', ()=>{
+    clearTimeout(debounceTimer);
+    tripStartCoords = null;
+    const q = input.value.trim();
+    if(q.length<3){ document.getElementById('trip-start-suggestions').classList.add('hidden'); return; }
+    debounceTimer = setTimeout(()=>fetchNominatimSuggestions(q), 400);
+  });
+  document.addEventListener('click', (e)=>{ if(!input.parentElement.contains(e.target)) document.getElementById('trip-start-suggestions').classList.add('hidden'); });
+}
+async function fetchNominatimSuggestions(q){
+  const box = document.getElementById('trip-start-suggestions');
+  try{
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=0&limit=5&q=${encodeURIComponent(q)}`, {headers:{'Accept-Language':'en'}});
+    if(!res.ok) throw new Error('geocoding failed');
+    const results = await res.json();
+    _startSuggestions = results;
+    box.innerHTML = results.length
+      ? results.map((r,i)=>`<button type="button" onclick="selectStartSuggestion(${i})">${escapeHtml(r.display_name)}</button>`).join('')
+      : '<div class="px-4 py-3 text-sm text-[#718078]">No matches found — you can still type a place name.</div>';
+    box.classList.remove('hidden');
+  }catch(e){
+    box.innerHTML = '<div class="px-4 py-3 text-sm text-[#718078]">Search unavailable right now — you can still type a place name.</div>';
+    box.classList.remove('hidden');
+  }
+}
+function selectStartSuggestion(i){
+  const r = _startSuggestions[i]; if(!r) return;
+  document.getElementById('trip-start').value = r.display_name;
+  tripStartCoords = {lat:Number(r.lat), lon:Number(r.lon)};
+  document.getElementById('trip-start-suggestions').classList.add('hidden');
+}
+
+/* ---------- OSRM routing: trip start → destination, and place directions ---------- */
+const DESTINATION_COORDS = {
+  'Coimbatore': [11.0168, 76.9558], 'Ooty': [11.4102, 76.6950], 'Kodaikanal': [10.2381, 77.4892],
+  'Coorg': [12.3375, 75.8069], 'Munnar': [10.0889, 77.0595], 'Goa': [15.2993, 74.1240]
+};
+function haversineKm([lat1,lon1],[lat2,lon2]){
+  const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+async function estimateRoute(destName){
+  const destCoords = DESTINATION_COORDS[destName];
+  if(!destCoords) return null;
+  const startCoords = tripStartCoords ? [tripStartCoords.lat, tripStartCoords.lon] : DESTINATION_COORDS['Coimbatore'];
+  try{
+    const url = `https://router.project-osrm.org/route/v1/driving/${startCoords[1]},${startCoords[0]};${destCoords[1]},${destCoords[0]}?overview=false`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('routing failed');
+    const data = await res.json();
+    const route = data.routes && data.routes[0];
+    if(!route) throw new Error('no route');
+    return { distance_km: Math.round(route.distance/1000), duration_hr: Math.round(route.duration/3600*10)/10 };
+  }catch(e){
+    const dist = Math.round(haversineKm(startCoords, destCoords));
+    return { distance_km: dist, duration_hr: Math.round(dist/45*10)/10, demo:true };
+  }
+}
+let placeRouteLine = null;
+async function navigatePlace(){
+  if(!currentPlace) return;
+  toast('Calculating route…');
+  const originCoords = userCoords || DESTINATION_COORDS['Coimbatore'];
+  try{
+    const url = `https://router.project-osrm.org/route/v1/driving/${originCoords[1]},${originCoords[0]};${currentPlace.lng},${currentPlace.lat}?overview=full&geometries=geojson`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('routing failed');
+    const data = await res.json();
+    const route = data.routes && data.routes[0];
+    if(!route) throw new Error('no route');
+    if(placeMap){
+      if(placeRouteLine) placeMap.removeLayer(placeRouteLine);
+      const coords = route.geometry.coordinates.map(c=>[c[1],c[0]]);
+      placeRouteLine = L.polyline(coords,{color:'#D9825B',weight:4}).addTo(placeMap);
+      placeMap.fitBounds(placeRouteLine.getBounds(),{padding:[24,24]});
+    }
+    showRouteBanner(`${(route.distance/1000).toFixed(1)} km · about ${Math.round(route.duration/60)} min by road`, false);
+  }catch(e){
+    const dist = haversineKm(originCoords, [currentPlace.lat, currentPlace.lng]);
+    showRouteBanner(`~${dist.toFixed(1)} km straight-line (live routing unavailable right now)`, true);
+  }
+}
+function showRouteBanner(text, isEstimate){
+  let banner = document.getElementById('route-banner');
+  if(!banner){
+    banner = document.createElement('div');
+    banner.id='route-banner';
+    banner.className='route-banner mt-4 text-sm font-semibold text-[#174C3C]';
+    document.getElementById('place-map').insertAdjacentElement('afterend', banner);
+  }
+  banner.textContent = (isEstimate?'Estimated route: ':'Route: ')+text;
+}
+
+/* ---------- Natural-language command routing (currency / translate / emergency) ---------- */
+function tryNaturalLanguageCommand(text){
+  const convertMatch = text.match(/convert\s+([\d.]+)\s*([a-zA-Z]{3})\s+to\s+([a-zA-Z]{3})/i);
+  if(convertMatch){
+    showView('currency');
+    setTimeout(()=>{
+      initCurrencyTool();
+      document.getElementById('cur-amount').value = convertMatch[1];
+      document.getElementById('cur-from').value = convertMatch[2].toUpperCase();
+      document.getElementById('cur-to').value = convertMatch[3].toUpperCase();
+      convertCurrency();
+    },50);
+    return true;
+  }
+  const translateMatch = text.match(/translate\s+"?([^"]+?)"?\s+(?:to|into)\s+(tamil|hindi|kannada|malayalam|english)/i);
+  if(translateMatch){
+    const langMap={tamil:'ta',hindi:'hi',kannada:'kn',malayalam:'ml',english:'en'};
+    showView('translator');
+    setTimeout(()=>{
+      document.getElementById('trans-input').value = translateMatch[1];
+      document.getElementById('trans-target').value = langMap[translateMatch[2].toLowerCase()];
+      translateText();
+    },50);
+    return true;
+  }
+  if(/\b(emergency|ambulance|\bsos\b)\b/i.test(text)){ showView('emergency'); return true; }
+  return false;
+}
+
+/* =====================================================================
+   LIVE SERVICES — Firebase auth/Firestore, cloud-backed persistence, and weather
+   ===================================================================== */
+let firebaseApp=null, firebaseAuth=null, firebaseDb=null, firebaseUser=null, firebaseReady=false;
+const localStore = YaatraStore;
+function authErrorMessage(error){
+  const map={'auth/invalid-credential':'Email or password is incorrect.','auth/user-not-found':'No account exists for this email.','auth/wrong-password':'Email or password is incorrect.','auth/email-already-in-use':'An account already exists for this email.','auth/weak-password':'Use a password with at least 6 characters.','auth/popup-closed-by-user':'Google sign-in was cancelled.','auth/too-many-requests':'Too many attempts. Please try again later.'}; return map[error?.code] || error?.message || 'Authentication failed.';
+}
+function setAuthError(message=''){ const el=document.getElementById('auth-error'); if(!el)return; el.textContent=message; el.classList.toggle('hidden',!message); }
+function renderAuth(user){
+  firebaseUser=user || null;
+  const status=document.getElementById('auth-status'), guest=document.getElementById('auth-guest-panel'), panel=document.getElementById('auth-user-panel'), details=document.getElementById('auth-user-details');
+  if(!status)return;
+  if(user){ status.textContent='Signed in'; guest.classList.add('hidden'); panel.classList.remove('hidden'); details.textContent=`${user.displayName || user.email} · Cloud sync enabled`; const heading=document.querySelector('#profile h1'); if(heading) heading.textContent=`${user.displayName ? user.displayName + "'s" : 'Your'} profile`; loadSavedTrips(); }
+  else { status.textContent=firebaseReady?'Guest mode · sign in to sync':'Firebase setup required'; guest.classList.remove('hidden'); panel.classList.add('hidden'); }
+}
+async function initFirebase(){
+  try{
+    const cfg=(await (await fetch(`${YAATRA_CONFIG.API_BASE}/config`)).json()).firebase;
+    if(!cfg?.apiKey || !cfg?.projectId || !window.firebase){ renderAuth(null); return; }
+    firebaseApp=firebase.initializeApp(cfg); firebaseAuth=firebase.auth(); firebaseDb=firebase.firestore(); firebaseReady=true;
+    firebaseAuth.onAuthStateChanged(renderAuth);
+  }catch(error){ console.warn('Firebase unavailable',error.message); renderAuth(null); }
+}
+function authInputs(){ return {name:document.getElementById('auth-name').value.trim(),email:document.getElementById('auth-email').value.trim(),password:document.getElementById('auth-password').value}; }
+async function authRegister(){ setAuthError(''); if(!firebaseAuth)return setAuthError('Firebase Authentication is not configured yet. Add the public Firebase web settings to .env.'); const {name,email,password}=authInputs(); try{ const c=await firebaseAuth.createUserWithEmailAndPassword(email,password); if(name) await c.user.updateProfile({displayName:name}); await firebaseDb.collection('users').doc(c.user.uid).set({name:name||'',email:c.user.email,photoURL:c.user.photoURL||'',createdAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); toast('Account created.'); }catch(error){setAuthError(authErrorMessage(error));} }
+async function authLogin(){ setAuthError(''); if(!firebaseAuth)return setAuthError('Firebase Authentication is not configured yet.'); const {email,password}=authInputs(); try{ await firebaseAuth.signInWithEmailAndPassword(email,password); toast('Welcome back to Yaatra.'); }catch(error){setAuthError(authErrorMessage(error));} }
+async function authGoogle(){ setAuthError(''); if(!firebaseAuth)return setAuthError('Firebase Authentication is not configured yet.'); try{ const provider=new firebase.auth.GoogleAuthProvider(); const c=await firebaseAuth.signInWithPopup(provider); await firebaseDb.collection('users').doc(c.user.uid).set({name:c.user.displayName||'',email:c.user.email,photoURL:c.user.photoURL||'',updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); }catch(error){setAuthError(authErrorMessage(error));} }
+async function authResetPassword(){ setAuthError(''); if(!firebaseAuth)return setAuthError('Firebase Authentication is not configured yet.'); const email=document.getElementById('auth-email').value.trim(); if(!email)return setAuthError('Enter your email first.'); try{await firebaseAuth.sendPasswordResetEmail(email); toast('Password reset email sent.');}catch(error){setAuthError(authErrorMessage(error));} }
+async function authLogout(){ if(firebaseAuth) await firebaseAuth.signOut(); toast('Signed out.'); }
+function cloudCollection(key){ return key.startsWith('trips:')?'trips':key.startsWith('expenses:')?'expenses':key.startsWith('favourites:')?'favourites':null; }
+function cloudId(key){ return key.split(':').slice(1).join(':'); }
+window.storage={
+  async set(key,value){ const local=await localStore.set(key,value); if(firebaseUser && firebaseDb){ const collection=cloudCollection(key); if(collection){ try{ const data=JSON.parse(value); await firebaseDb.collection(collection).doc(cloudId(key)).set({...data,userId:firebaseUser.uid,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); }catch(error){console.warn('Firestore write failed',error.message);} } } return local; },
+  async get(key){ if(firebaseUser && firebaseDb){ const collection=cloudCollection(key); if(collection){ try{const doc=await firebaseDb.collection(collection).doc(cloudId(key)).get(); if(doc.exists && doc.data().userId===firebaseUser.uid) return {key,value:JSON.stringify(doc.data()),shared:true};}catch(error){console.warn('Firestore read failed',error.message);} } } return localStore.get(key); },
+  async delete(key){ const local=await localStore.delete(key); if(firebaseUser && firebaseDb){const collection=cloudCollection(key); if(collection){try{await firebaseDb.collection(collection).doc(cloudId(key)).delete();}catch(error){console.warn('Firestore delete failed',error.message);}}} return local;},
+  async list(prefix=''){ const local=await localStore.list(prefix); if(!firebaseUser || !firebaseDb) return local; const collection=cloudCollection(prefix); if(!collection)return local; try{const snapshot=await firebaseDb.collection(collection).where('userId','==',firebaseUser.uid).get(); const keys=snapshot.docs.map(d=>`${collection}:${d.id}`); return {keys:[...new Set([...(local.keys||[]),...keys])],prefix,shared:true};}catch(error){return local;} }
+};
+const weatherCodeText={0:'Clear sky',1:'Mainly clear',2:'Partly cloudy',3:'Overcast',45:'Foggy',48:'Rime fog',51:'Light drizzle',53:'Drizzle',55:'Heavy drizzle',61:'Light rain',63:'Rain',65:'Heavy rain',71:'Light snow',73:'Snow',75:'Heavy snow',80:'Rain showers',81:'Rain showers',82:'Heavy showers',95:'Thunderstorm'};
+function weatherIcon(code){ return Number(code)===0?'☀':Number(code)<4?'☁':Number(code)<70?'☂':'⚡'; }
+async function loadWeather(params={query:userLocation||'Coimbatore'}){ const status=document.getElementById('weather-status'); const current=document.getElementById('weather-current'); const forecast=document.getElementById('weather-forecast'); if(!status||!current||!forecast)return; status.textContent='Loading live conditions…'; current.innerHTML='<div class="skeleton h-24 rounded-2xl"></div>'; forecast.innerHTML=''; try{ const qs=new URLSearchParams(params); const res=await fetch(`${YAATRA_CONFIG.API_BASE}/weather?${qs}`); const data=await res.json(); if(!res.ok)throw new Error(data.message||'Weather unavailable'); const c=data.current,d=data.daily; status.textContent=`${data.location.label} · ${data.location.timezone} · Live via ${data.source}`; current.innerHTML=`<div class="text-6xl" aria-hidden="true">${weatherIcon(c.weather_code)}</div><div><p class="font-editorial text-4xl text-[#174C3C]">${Math.round(c.temperature_2m)}°C</p><p class="font-semibold text-[#174C3C]">${weatherCodeText[c.weather_code]||'Current conditions'}</p><p class="text-sm text-[#718078]">Feels like ${Math.round(c.apparent_temperature)}°C · Humidity ${c.relative_humidity_2m}% · Wind ${Math.round(c.wind_speed_10m)} km/h</p></div>`; forecast.innerHTML=d.time.map((day,i)=>`<div class="rounded-2xl bg-[#E8F0EA] p-3"><p class="text-xs font-bold text-[#718078]">${new Date(day).toLocaleDateString('en-IN',{weekday:'short'})}</p><p class="mt-2 text-2xl">${weatherIcon(d.weather_code[i])}</p><p class="mt-1 text-sm font-semibold text-[#174C3C]">${Math.round(d.temperature_2m_max[i])}° / ${Math.round(d.temperature_2m_min[i])}°</p><p class="mt-1 text-xs text-[#718078]">${d.precipitation_probability_max[i] ?? 0}% rain</p></div>`).join(''); }catch(error){ status.textContent=error.message||'Live weather is unavailable.'; current.innerHTML='<div class="rounded-2xl bg-[#fff4dc] p-4 text-sm text-[#8a5b10]">Weather could not be loaded. Try again or search another destination.</div>'; } }
+function searchWeather(event){ event.preventDefault(); const q=document.getElementById('weather-query').value.trim(); if(q)loadWeather({query:q}); }
+async function toggleFavoriteCurrent(){
+  if(!currentPlace)return;
+  const key=`favourites:${currentPlace.id}`; const existing=await window.storage.get(key);
+  if(existing){ await window.storage.delete(key); document.getElementById('place-favorite-button').textContent='Save favourite'; toast('Removed from favourites.'); }
+  else { await window.storage.set(key,JSON.stringify({...currentPlace,savedAt:Date.now()})); document.getElementById('place-favorite-button').textContent='Saved favourite'; toast(firebaseUser?'Favourite synced to your account.':'Favourite saved on this device.'); }
+}
+async function renderFavorites(){
+  const box=document.getElementById('favorites-list'); if(!box)return; box.innerHTML='<p class="text-sm text-[#718078]">Loading favourites…</p>';
+  try{ const listing=await window.storage.list('favourites:'); const items=[]; for(const key of listing.keys||[]){const record=await window.storage.get(key); if(record?.value)items.push(JSON.parse(record.value));} box.innerHTML=items.length?items.map(p=>`<div class="flex items-center justify-between gap-3 rounded-xl border border-[#DDE3DD] p-3"><div><p class="font-semibold text-[#174C3C]">${escapeHtml(p.name||'Saved place')}</p><p class="text-xs text-[#718078]">${escapeHtml(p.type||'Place')} · ${p.live?'Live listing':'Saved listing'}</p></div><button type="button" class="text-sm font-semibold text-[#b44a36]" onclick="removeFavorite('${p.id}')">Remove</button></div>`).join(''):'<p class="text-sm text-[#718078]">No favourites saved yet. Open a place and choose Save favourite.</p>'; }catch(error){box.innerHTML='<p class="text-sm text-[#b44a36]">Favourites could not be loaded.</p>';}
+}
+async function removeFavorite(id){ await window.storage.delete(`favourites:${id}`); renderFavorites(); toast('Favourite removed.'); }
+
+wireStartAutocomplete();
+initFirebase();
+loadWeather(userCoords?{lat:userCoords[0],lon:userCoords[1]}:{query:'Coimbatore'});
+renderAllMascots();
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  if(window.lucide) lucide.createIcons();
+  if('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+});
+if(document.readyState==='complete' || document.readyState==='interactive'){ if(window.lucide) lucide.createIcons(); }
+</script>
+</body>
+</html>

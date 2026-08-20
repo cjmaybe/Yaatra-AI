@@ -1,0 +1,9 @@
+{
+  "name":"Yaatra — Discover. Plan. Explore.",
+  "short_name":"Yaatra",
+  "start_url":"/",
+  "display":"standalone",
+  "background_color":"#F5F3ED",
+  "theme_color":"#174C3C",
+  "description":"An AI-powered travel companion for discovery, planning, and exploration."
+}
