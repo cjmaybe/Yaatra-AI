@@ -1,7 +1,0 @@
-{
-  "name":"yaatra-functions",
-  "private":true,
-  "type":"module",
-  "engines":{"node":"22"},
-  "dependencies":{"cors":"^2.8.5","dotenv":"^16.4.5","express":"^4.21.2","firebase-functions":"^6.4.0","helmet":"^8.0.0"}
-}
