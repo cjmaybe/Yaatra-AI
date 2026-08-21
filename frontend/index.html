@@ -119,9 +119,15 @@
 
     .yaatra-msg-row { display: flex; gap: 10px; align-items: flex-end; }
     .yaatra-msg-row.user { flex-direction: row-reverse; }
-    .yaatra-bubble { max-width: 82%; padding: 12px 15px; border-radius: 18px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+    .yaatra-bubble { max-width: 82%; padding: 12px 15px; border-radius: 18px; font-size: 14px; line-height: 1.5; }
+    .yaatra-bubble.user { white-space: pre-wrap; }
     .yaatra-bubble.ai { background: #fff; border: 1px solid var(--line); border-bottom-left-radius: 4px; color: var(--ink); box-shadow: 0 2px 6px rgba(0,0,0,0.03); }
     .yaatra-bubble.user { background: var(--forest); color: #fff; border-bottom-right-radius: 4px; }
+    .yaatra-bubble p { margin: 0 0 8px; }
+    .yaatra-bubble p:last-child { margin-bottom: 0; }
+    .yaatra-bubble .yaatra-bubble-list { margin: 0 0 8px; padding-left: 18px; }
+    .yaatra-bubble .yaatra-bubble-list:last-child { margin-bottom: 0; }
+    .yaatra-bubble .yaatra-bubble-list li { margin-bottom: 3px; }
     .yaatra-chip { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 7px 13px; font-size: 12.5px; font-weight: 600; color: var(--forest); white-space: nowrap; cursor: pointer; transition: .15s; }
     .yaatra-chip:hover { border-color: var(--terra); background: var(--sage); }
     .yaatra-card { border: 1px solid var(--line); background: #fff; border-radius: 16px; padding: 14px; margin-top: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.04); }
@@ -2166,7 +2172,7 @@
       return '<div class="yaatra-msg-row ' + (m.role === 'user' ? 'user' : 'ai') + '">' +
         (m.role !== 'user' ? '<div class="shrink-0" data-mascot="talk" data-mascot-size="30"></div>' : '') +
         '<div class="max-w-[85%]">' +
-          '<div class="yaatra-bubble ' + (m.role === 'user' ? 'user' : 'ai') + '">' + escapeHtml(m.text) + '</div>' +
+          '<div class="yaatra-bubble ' + (m.role === 'user' ? 'user' : 'ai') + '">' + (m.role === 'user' ? escapeHtml(m.text) : renderYaatraChatText(m.text)) + '</div>' +
           (m.cards || []).map(c => renderChatCard(c, idx)).join('') +
         '</div>' +
       '</div>';
@@ -2236,6 +2242,44 @@
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+  }
+
+  // Renders AI chat text as safe, simple HTML for the chat bubble.
+  // Escapes everything first (so the model can never inject raw HTML),
+  // then converts a small, deliberate subset of Markdown-like syntax
+  // (bold, "-"/"1." list lines, blank-line paragraphs) into real tags.
+  // Strips markdown table/heading/hr syntax the model might still emit
+  // instead of showing it as literal characters.
+  function renderYaatraChatText(str=''){
+    let text = String(str)
+      .replace(/\r\n/g, '\n')
+      .replace(/^\s*\|.*\|\s*$/gm, '')      // drop any markdown table rows
+      .replace(/^\s*#{1,6}\s*/gm, '')       // drop markdown heading markers
+      .replace(/^\s*-{3,}\s*$/gm, '')       // drop horizontal rules
+      .replace(/<br\s*\/?>/gi, '\n')        // treat literal <br> as a line break, not text
+      .trim();
+
+    const paragraphs = text.split(/\n{2,}/).map(block => block.trim()).filter(Boolean);
+
+    const renderInline = (line) => escapeHtml(line).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+    return paragraphs.map(block => {
+      const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
+      const isBulletBlock = lines.length > 0 && lines.every(l => /^[-*]\s+/.test(l));
+      const isNumberedBlock = lines.length > 0 && lines.every(l => /^\d+[.)]\s+/.test(l));
+
+      if (isBulletBlock) {
+        return '<ul class="yaatra-bubble-list">' +
+          lines.map(l => '<li>' + renderInline(l.replace(/^[-*]\s+/, '')) + '</li>').join('') +
+          '</ul>';
+      }
+      if (isNumberedBlock) {
+        return '<ol class="yaatra-bubble-list">' +
+          lines.map(l => '<li>' + renderInline(l.replace(/^\d+[.)]\s+/, '')) + '</li>').join('') +
+          '</ol>';
+      }
+      return '<p>' + lines.map(renderInline).join('<br>') + '</p>';
+    }).join('');
   }
 
   /* =====================================================================
