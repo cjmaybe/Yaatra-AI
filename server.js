@@ -40,8 +40,13 @@ function clean(value, max = 4000) {
 
 function parseJsonBlock(text) {
   if (!text) return null;
+  // Strip markdown code fences (```json ... ``` or ``` ... ```) if present
+  const stripped = text.replace(/```json/gi, '```').split('```').length > 1
+    ? text.split('```').filter((_, i) => i % 2 === 1).join('\n').replace(/^json\s*/i, '').trim()
+    : text.trim();
+  try { return JSON.parse(stripped); } catch {}
   try { return JSON.parse(text); } catch {}
-  const match = text.match(/\{[\s\S]*\}/);
+  const match = (stripped.match(/\{[\s\S]*\}/) || text.match(/\{[\s\S]*\}/));
   if (!match) return null;
   try { return JSON.parse(match[0]); } catch { return null; }
 }
@@ -349,7 +354,7 @@ app.post('/api/ai/chat', rateLimit, async (req, res) => {
       }))
     : [];
 
-  const wantsJson = /plan|itinerary|schedule|budget|trip to|day-by-day/i.test(message);
+  const wantsJson = /plan|itinerary|schedule|budget|trip to|day-by-day|day trip|one[- ]day|things to do|places to visit|starting from/i.test(message);
   const payload = {
     model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile',
     messages: [
@@ -386,10 +391,21 @@ app.post('/api/ai/chat', rateLimit, async (req, res) => {
     const text = data?.choices?.[0]?.message?.content?.trim();
     if (!text) return res.status(502).json({ message: 'Yaatra AI returned an empty response.' });
 
-    const structured = wantsJson ? parseJsonBlock(text) : null;
+    // Always attempt to extract structured itinerary JSON from the reply,
+    // regardless of which keywords triggered response_format — the model
+    // may return a JSON itinerary (per the system prompt) even when the
+    // user's own wording didn't match the wantsJson heuristic.
+    const structured = parseJsonBlock(text);
+    const hasItinerary = Array.isArray(structured?.days) && structured.days.length > 0;
+    // Never show the raw JSON/markdown blob as chat text — fall back to the
+    // structured summary, or a short friendly line, instead.
+    const displayText = hasItinerary
+      ? (structured.summary || `Here's your ${structured.destination || 'trip'} itinerary below.`)
+      : (structured ? (structured.summary || structured.text || text) : text);
+
     return res.json({
-      text: wantsJson && structured?.summary ? structured.summary : text,
-      structured,
+      text: displayText,
+      structured: hasItinerary ? structured : null,
       demo: false
     });
   } catch (error) {

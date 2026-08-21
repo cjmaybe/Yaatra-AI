@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Yaatra</title>
+  <title>Yaatra — Discover. Plan. Explore.</title>
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&display=swap" rel="stylesheet">
@@ -1526,7 +1526,7 @@
       const el = document.createElement('button');
       el.className = 'w-full rounded-2xl border border-[#DDE3DD] p-3 text-left hover:border-[#D9825B] hover:shadow-md transition flex gap-3 bg-white group focus:outline-none';
       const imgSrc = p.image || FALLBACK_CATEGORY_URLS[p.category] || FALLBACK_CATEGORY_URLS.attractions;
-      el.innerHTML = '<div class="h-18 w-18 flex-none rounded-xl overflow-hidden relative bg-[#174C3C]">' +
+      el.innerHTML = '<div class="h-[72px] w-[72px] flex-none rounded-xl overflow-hidden relative bg-[#174C3C]">' +
           '<img src="' + imgSrc + '" class="h-full w-full object-cover group-hover:scale-105 transition" loading="lazy" alt="' + p.name + '" onerror="handleImgError(this, \'' + p.category + '\')">' +
         '</div>' +
         '<div class="flex-1 flex justify-between gap-2 min-w-0">' +
