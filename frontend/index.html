@@ -788,7 +788,12 @@
             <div><h1 class="font-editorial text-3xl md:text-4xl text-[#174C3C] font-bold">Travel translator</h1><p id="translator-status" class="mt-1 text-xs"></p></div>
           </div>
           <form id="translator-form" class="mt-7 rounded-3xl border border-[#DDE3DD] bg-white p-6 md:p-8 shadow-sm" onsubmit="translateText(event)">
-            <label class="block font-semibold text-sm" for="trans-input">Phrase or sentence</label>
+            <label class="flex items-center justify-between gap-2 font-semibold text-sm" for="trans-input">
+              <span>Phrase or sentence</span>
+              <button type="button" class="inline-flex items-center gap-1 text-xs font-bold text-[#174C3C] hover:underline" onclick="speakYaatraText(document.getElementById('trans-input').value.trim(), document.getElementById('trans-source').value)" aria-label="Listen to the phrase you typed">
+                <i data-lucide="volume-2" class="w-3.5 h-3.5"></i>Listen
+              </button>
+            </label>
             <textarea id="trans-input" class="mt-2 w-full rounded-xl border border-[#DDE3DD] px-4 py-3 outline-none focus:border-[#174C3C] text-sm md:text-base" rows="3" placeholder="Where is the nearest bus stand or railway station?" required></textarea>
             <div class="mt-4 grid grid-cols-2 gap-3">
               <div>
@@ -817,8 +822,13 @@
             <button class="mt-6 w-full rounded-xl bg-[#174C3C] px-5 py-3.5 font-bold text-white hover:bg-[#0f3327] transition shadow" type="submit">Translate</button>
           </form>
           <div id="translator-loading" class="hidden mt-5 flex items-center justify-center gap-2 py-6"><span class="loader-dots"><span></span><span></span><span></span></span></div>
-          <div id="translator-result" class="mt-5 hidden rounded-3xl bg-[#E8F0EA] p-6 border border-[#174C3C]/20 shadow-sm">
-            <p class="text-xs font-bold uppercase tracking-wider text-[#D9825B]">Translated text</p>
+          <div id="translator-result" class="hidden mt-5 rounded-3xl bg-[#E8F0EA] p-6 border border-[#174C3C]/20 shadow-sm">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-xs font-bold uppercase tracking-wider text-[#D9825B]">Translated text</p>
+              <button type="button" id="translator-speak-btn" class="shrink-0 inline-flex items-center gap-1.5 rounded-full bg-[#174C3C] px-3.5 py-1.5 text-xs font-bold text-white hover:bg-[#0f3327] transition" onclick="speakTranslation()" aria-label="Listen to translated text">
+                <i data-lucide="volume-2" class="w-3.5 h-3.5"></i>Listen
+              </button>
+            </div>
             <p id="translator-result-text" class="font-editorial text-2xl text-[#174C3C] mt-2 leading-relaxed"></p>
           </div>
           <div id="translator-error" class="hidden mt-5 rounded-2xl bg-[#fdeceb] p-4 text-sm text-[#b44a36]"></div>
@@ -2356,6 +2366,74 @@
     }).join('');
   }
 
+  // Maps our translator language codes to BCP-47 speech locales, preferring
+  // an Indian regional locale first since that matches the app's audience,
+  // with a generic fallback for browsers/voice packs that only ship the base locale.
+  const YAATRA_TTS_LOCALES = {
+    en: ['en-IN', 'en-US', 'en-GB'],
+    ta: ['ta-IN', 'ta'],
+    hi: ['hi-IN', 'hi'],
+    kn: ['kn-IN', 'kn'],
+    ml: ['ml-IN', 'ml'],
+    te: ['te-IN', 'te']
+  };
+  let yaatraLastTranslation = { text: '', lang: 'en' };
+  let yaatraVoicesReady = false;
+
+  function primeYaatraVoices(){
+    if (!('speechSynthesis' in window) || yaatraVoicesReady) return;
+    // Some browsers (notably Chrome) load voices asynchronously; calling
+    // getVoices() once and listening for the change event warms the list
+    // so the first "Listen" tap isn't silent.
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => { yaatraVoicesReady = true; };
+  }
+
+  function pickYaatraVoice(langCode){
+    const voices = window.speechSynthesis.getVoices();
+    const locales = YAATRA_TTS_LOCALES[langCode] || [langCode];
+    for (const locale of locales) {
+      const exact = voices.find(v => v.lang && v.lang.toLowerCase() === locale.toLowerCase());
+      if (exact) return exact;
+    }
+    const base = (locales[0] || langCode).split('-')[0].toLowerCase();
+    return voices.find(v => v.lang && v.lang.toLowerCase().startsWith(base)) || null;
+  }
+
+  function speakYaatraText(text, langCode){
+    if (!text) return;
+    if (!('speechSynthesis' in window)) {
+      showYaatraToast('Text-to-speech is not supported on this browser.');
+      return;
+    }
+    window.speechSynthesis.cancel(); // stop any speech already in progress
+    const utterance = new SpeechSynthesisUtterance(text);
+    const voice = pickYaatraVoice(langCode);
+    if (voice) {
+      utterance.voice = voice;
+      utterance.lang = voice.lang;
+    } else {
+      // No installed voice for this language: fall back to the browser's
+      // default voice/locale rather than staying silent, and let the user know.
+      utterance.lang = (YAATRA_TTS_LOCALES[langCode] || [langCode])[0];
+      showYaatraToast('No ' + (langCode || '').toUpperCase() + ' voice installed on this device — playing with a default voice.');
+    }
+    utterance.rate = 0.95;
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function speakTranslation(){
+    speakYaatraText(yaatraLastTranslation.text, yaatraLastTranslation.lang);
+  }
+
+  function showYaatraToast(msg){
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+    toast.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3000);
+  }
+
   function usePhrasebookEntry(en){
     document.getElementById('trans-input').value = en;
     document.getElementById('trans-source').value = 'en';
@@ -2392,7 +2470,9 @@
       }
       loading.classList.add('hidden');
       document.getElementById('translator-result-text').textContent = translated;
+      yaatraLastTranslation = { text: translated, lang: target };
       resBox.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
     } catch(err) {
       loading.classList.add('hidden');
       errorBox.textContent = 'Translation service encountered an error.';
@@ -3002,6 +3082,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     if (window.lucide) lucide.createIcons();
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+    primeYaatraVoices();
   });
   if (document.readyState === 'complete' || document.readyState === 'interactive') {
     if (window.lucide) lucide.createIcons();
