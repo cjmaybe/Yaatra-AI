@@ -154,6 +154,12 @@
     .loader-dots span:nth-child(2){ animation-delay:.15s } .loader-dots span:nth-child(3){ animation-delay:.3s }
     .route-banner { background: var(--sage); border: 1px solid var(--forest); border-radius: 16px; padding: 12px 16px; }
     
+    .access-option { display:flex; gap:10px; align-items:flex-start; border:1px solid var(--line); border-radius:16px; padding:12px; cursor:pointer; background:#fff; transition:.15s; }
+    .access-option:has(input:checked) { border-color:var(--forest); background:var(--sage); }
+    .access-option input { margin-top:4px; accent-color:var(--forest); }
+    .access-option b { display:block; color:var(--forest); font-size:14px; }
+    .access-option small { display:block; margin-top:3px; color:var(--muted); font-size:12px; line-height:1.35; }
+    #access-map .leaflet-container { min-height:100%; }
     /* Navigation Active indicator */
     .nav-btn.active { color: var(--forest); font-weight: 700; background: var(--sage); }
     .mob-nav-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; font-weight: 600; color: var(--muted); padding: 6px 10px; border-radius: 12px; transition: .15s; }
@@ -175,6 +181,7 @@
         <nav class="desktop-nav flex items-center gap-1.5" aria-label="Main navigation">
           <button class="nav-btn px-3.5 py-2 rounded-xl hover:bg-[#E8F0EA] font-semibold text-[#26332E] transition active" id="nav-home" type="button" onclick="showView('home')">Home</button>
           <button class="nav-btn px-3.5 py-2 rounded-xl hover:bg-[#E8F0EA] font-semibold text-[#26332E] transition" id="nav-nearby" type="button" onclick="showView('nearby')">Explore</button>
+          <button class="nav-btn px-3.5 py-2 rounded-xl hover:bg-[#E8F0EA] font-semibold text-[#26332E] transition" id="nav-accessibility" type="button" onclick="showView('accessibility')">Access map</button>
           <button class="nav-btn px-3.5 py-2 rounded-xl hover:bg-[#E8F0EA] font-semibold text-[#26332E] transition" id="nav-planner" type="button" onclick="openPlanner()">Plan a trip</button>
           <button class="nav-btn px-3.5 py-2 rounded-xl hover:bg-[#E8F0EA] font-semibold text-[#26332E] transition" id="nav-trips" type="button" onclick="showView('trips')">My trips</button>
           <button class="nav-btn px-3.5 py-2 rounded-xl hover:bg-[#E8F0EA] font-semibold text-[#26332E] transition" id="nav-tools" type="button" onclick="showView('tools')">Tools</button>
@@ -379,6 +386,52 @@
       </section>
 
       <!-- ============ 3. PLACE DETAIL VIEW ============ -->
+      <section id="accessibility" class="page" aria-labelledby="accessibility-heading">
+        <div class="mb-6 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
+          <div>
+            <p class="text-xs uppercase tracking-[.2em] font-bold text-[#D9825B]">Yaatra accessibility</p>
+            <h1 id="accessibility-heading" class="font-editorial text-4xl md:text-5xl font-bold text-[#174C3C]">Reach places your way.</h1>
+            <p class="mt-2 max-w-2xl text-[#718078]">A map that explains not only where to go, but how you can reach it safely. Accessibility information is labelled by evidence level; unknown data is never presented as a promise.</p>
+          </div>
+          <button type="button" class="rounded-2xl bg-[#174C3C] px-5 py-3 text-white font-bold hover:bg-[#0f3327]" onclick="saveAccessibilityProfile()"><i data-lucide="save" class="w-4 h-4 inline mr-1"></i>Save profile</button>
+        </div>
+
+        <div class="grid lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,.75fr)] gap-6">
+          <div class="space-y-5">
+            <section class="rounded-3xl bg-white border border-[#DDE3DD] p-5 md:p-7 shadow-sm" aria-labelledby="profile-heading">
+              <div class="flex items-start justify-between gap-3"><div><h2 id="profile-heading" class="font-editorial text-2xl font-bold text-[#174C3C]">Your accessibility profile</h2><p class="text-sm text-[#718078] mt-1">Choose what the route planner should prioritize or avoid.</p></div><span class="live-badge"><i data-lucide="user" class="w-3 h-3"></i>Personal</span></div>
+              <div class="mt-5 grid sm:grid-cols-2 gap-3">
+                <label class="access-option"><input type="checkbox" value="wheelchair" class="access-pref"> <span><b>Wheelchair user</b><small>Avoid stairs; prefer ramps, lifts and smooth crossings.</small></span></label>
+                <label class="access-option"><input type="checkbox" value="limited_mobility" class="access-pref"> <span><b>Limited mobility</b><small>Prefer shorter, gentler routes with rest points.</small></span></label>
+                <label class="access-option"><input type="checkbox" value="blind_low_vision" class="access-pref"> <span><b>Blind / low vision</b><small>Prioritize tactile paths, crossings and clear navigation cues.</small></span></label>
+                <label class="access-option"><input type="checkbox" value="elderly" class="access-pref"> <span><b>Elderly traveller</b><small>Prefer safer crossings, seating and lower complexity.</small></span></label>
+              </div>
+              <label class="block mt-4 text-sm font-semibold text-[#26332E]" for="custom-accessibility">Custom needs <span class="font-normal text-[#718078]">(optional)</span></label>
+              <textarea id="custom-accessibility" rows="2" class="mt-1 w-full rounded-2xl border border-[#DDE3DD] px-4 py-3 outline-none focus:ring-2 focus:ring-[#E7B65A]" placeholder="For example: avoid steep slopes, need an accessible toilet, prefer quiet entrances"></textarea>
+            </section>
+
+            <section class="rounded-3xl bg-white border border-[#DDE3DD] p-5 md:p-7 shadow-sm" aria-labelledby="route-heading">
+              <div class="flex items-center justify-between gap-3"><div><h2 id="route-heading" class="font-editorial text-2xl font-bold text-[#174C3C]">Accessible routing</h2><p class="text-sm text-[#718078] mt-1">Use live coordinates or enter a destination.</p></div><span id="access-route-status" class="demo-badge">Not calculated</span></div>
+              <div class="mt-4 grid sm:grid-cols-2 gap-3"><input id="access-route-destination" class="rounded-2xl border border-[#DDE3DD] px-4 py-3" placeholder="Railway station, hospital or place" aria-label="Accessible route destination"><button type="button" class="rounded-2xl bg-[#D9825B] px-4 py-3 text-white font-bold" onclick="calculateAccessibleRoute()"><i data-lucide="map" class="w-4 h-4 inline mr-1"></i>Find accessible route</button></div>
+              <div id="access-route-result" class="mt-4" aria-live="polite"><p class="text-sm text-[#718078]">Your route will show distance, time and the accessibility constraints applied.</p></div>
+            </section>
+
+            <section class="rounded-3xl bg-white border border-[#DDE3DD] p-5 md:p-7 shadow-sm" aria-labelledby="report-heading">
+              <div><h2 id="report-heading" class="font-editorial text-2xl font-bold text-[#174C3C]">Report an accessibility feature or barrier</h2><p class="text-sm text-[#718078] mt-1">Share only what you observed. Reports are marked unknown until corroborated.</p></div>
+              <div class="mt-4 grid sm:grid-cols-2 gap-3"><select id="access-report-category" class="rounded-2xl border border-[#DDE3DD] px-4 py-3" aria-label="Report category"><option value="ramp">Ramp</option><option value="elevator">Lift / elevator</option><option value="accessible_toilet">Accessible toilet</option><option value="crossing">Accessible crossing</option><option value="tactile_path">Tactile path</option><option value="stairs">Stairs</option><option value="pothole">Pothole</option><option value="blocked_path">Blocked path</option><option value="other_barrier">Other barrier</option></select><input id="access-report-place" class="rounded-2xl border border-[#DDE3DD] px-4 py-3" placeholder="Place or landmark" aria-label="Place or landmark"></div>
+              <textarea id="access-report-description" rows="3" class="mt-3 w-full rounded-2xl border border-[#DDE3DD] px-4 py-3" placeholder="What did you observe? Include useful detail such as where the ramp is or what is blocked." aria-label="Report description"></textarea>
+              <div class="mt-3 flex flex-wrap items-center gap-3"><input id="access-report-photo" type="file" accept="image/*" capture="environment" class="text-sm" aria-label="Optional report photo"><button type="button" class="rounded-2xl border border-[#174C3C] px-4 py-2.5 font-bold text-[#174C3C]" onclick="submitAccessibilityReport()">Submit report</button><span id="access-report-status" class="text-sm text-[#718078]" aria-live="polite"></span></div>
+            </section>
+          </div>
+
+          <aside class="space-y-5">
+            <section class="rounded-3xl bg-[#174C3C] text-white p-5 md:p-7 shadow-sm" aria-labelledby="scan-heading"><div class="flex items-center gap-3"><span class="w-11 h-11 rounded-2xl bg-white/10 grid place-items-center"><i data-lucide="scan" class="w-6 h-6 text-[#E7B65A]"></i></span><div><h2 id="scan-heading" class="font-editorial text-2xl font-bold">AI accessibility scanner</h2><p class="text-sm text-white/70">Photo evidence, not a guarantee.</p></div></div><label class="scan-drop mt-5 block border-white/25 bg-white/10 text-white" for="access-scan-photo"><i data-lucide="camera" class="w-7 h-7 mx-auto mb-2"></i><span class="block font-bold">Upload or take a photo</span><small class="block mt-1 text-white/70">Detect ramps, stairs, obstacles and entrances</small><input id="access-scan-photo" type="file" accept="image/*" capture="environment" class="sr-only" onchange="runAccessibilityScan(event)"></label><div id="access-scan-result" class="mt-4 text-sm" aria-live="polite"><p class="text-white/70">No scan yet.</p></div></section>
+            <section class="rounded-3xl bg-white border border-[#DDE3DD] p-5 md:p-7 shadow-sm" aria-labelledby="map-heading"><div class="flex items-center justify-between gap-3"><div><h2 id="map-heading" class="font-editorial text-2xl font-bold text-[#174C3C]">Accessibility map</h2><p class="text-sm text-[#718078] mt-1">Nearby OSM accessibility tags plus community reports.</p></div><button type="button" class="rounded-xl bg-[#E8F0EA] p-2 text-[#174C3C]" onclick="loadAccessibilityMap()" aria-label="Refresh accessibility map"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button></div><div id="access-map" class="mt-4 h-64 rounded-2xl overflow-hidden bg-[#E8F0EA]" role="region" aria-label="Accessibility map"></div><div id="access-map-list" class="mt-3 space-y-2" aria-live="polite"><p class="text-sm text-[#718078]">Allow location access to load nearby accessibility data.</p></div></section>
+            <section class="rounded-3xl bg-[#FFF4DC] border border-[#E7B65A] p-5" aria-labelledby="legend-heading"><h2 id="legend-heading" class="font-bold text-[#174C3C]">Evidence legend</h2><p class="mt-2 text-sm text-[#5e5c50]"><b>Verified</b> has community confirmation. <b>User reported</b> comes from an observation. <b>AI detected</b> is image analysis. <b>Unknown</b> means there is not enough evidence yet.</p></section>
+          </aside>
+        </div>
+      </section>
+
       <section id="place" class="page">
         <div class="w-full max-w-5xl mx-auto px-5 py-8">
           <button class="mb-5 flex items-center gap-2 text-sm font-semibold text-[#174C3C] hover:underline" type="button" onclick="showView('nearby')"><i data-lucide="arrow-left" class="w-4 h-4"></i>Back to nearby map</button>
@@ -939,9 +992,9 @@
     <!-- Mobile Bottom Navigation Bar (Fixed) -->
     <nav class="fixed bottom-0 left-0 right-0 z-50 flex md:hidden justify-around border-t border-[#DDE3DD] bg-[#F5F3ED]/98 backdrop-blur px-1 py-1.5 shadow-lg" aria-label="Mobile navigation">
       <button class="mob-nav-btn active" id="mob-nav-home" type="button" onclick="showView('home')">
-        <i data-lucide="house" class="w-5 h-5"></i><span>Home</span>
+        <i data-lucide="home" class="w-5 h-5"></i><span>Home</span>
       </button>
-      <button class="mob-nav-btn" id="mob-nav-nearby" type="button" onclick="showView('nearby')">
+      <button class="mob-nav-btn" id="mob-nav-accessibility" type="button" onclick="showView('accessibility')"><i data-lucide="accessibility" class="w-5 h-5"></i><span>Access</span></button><button class="mob-nav-btn" id="mob-nav-nearby" type="button" onclick="showView('nearby')">
         <i data-lucide="compass" class="w-5 h-5"></i><span>Explore</span>
       </button>
       <button class="mob-nav-btn" id="mob-nav-planner" type="button" onclick="openPlanner()">
@@ -954,7 +1007,7 @@
         <i data-lucide="grid" class="w-5 h-5"></i><span>Tools</span>
       </button>
       <button class="mob-nav-btn" id="mob-nav-profile" type="button" onclick="showView('profile')">
-        <i data-lucide="user-round" class="w-5 h-5"></i><span>Profile</span>
+        <i data-lucide="user" class="w-5 h-5"></i><span>Profile</span>
       </button>
     </nav>
 
@@ -1415,6 +1468,7 @@
     if (mBtn) mBtn.classList.add('active');
 
     if (id === 'nearby') setTimeout(() => initNearbyMap(), 80);
+    if (id === 'accessibility') setTimeout(() => { initAccessibility(); loadAccessibilityMap(); }, 100);
     if (id === 'trips') renderTrips();
     if (id === 'currency') initCurrencyTool();
     if (id === 'translator') renderPhrasebook();
@@ -2049,7 +2103,7 @@
         body: JSON.stringify({
           message: userText,
           history: recent,
-          context: { location: userLocation, destination: currentTrip?.destination, budget: currentTrip?.budget }
+          context: { location: userLocation, destination: currentTrip?.destination, budget: currentTrip?.budget, accessibility_profile: getAccessibilityProfile(), accessibility_evidence_policy: 'Never invent accessibility information; label unknown or unverified data.' }
         })
       });
 
@@ -2578,6 +2632,17 @@
   }
 
   function tryNaturalLanguageCommand(text){
+    if (/(wheelchair|accessible|accessibility|limited mobility|blind|low vision|elderly)/i.test(text) && /(near|nearby|around|places|restaurant|hospital|hotel|station|attraction)/i.test(text)) {
+      showView('accessibility');
+      setTimeout(() => loadAccessibilityMap(), 100);
+      return true;
+    }
+    if (/(wheelchair|accessible|accessibility|limited mobility)/i.test(text) && /(route|directions|reach|get to|go to)/i.test(text)) {
+      showView('accessibility');
+      const destination = text.replace(/.*?(?:to|towards|reach|get to)\s+/i, '').trim();
+      setTimeout(() => { const input = document.getElementById('access-route-destination'); if (input && destination) { input.value = destination; calculateAccessibleRoute(); } }, 120);
+      return true;
+    }
     if (/(emergency|ambulance|sos|police)/i.test(text)) {
       showView('emergency');
       return true;
@@ -2796,6 +2861,86 @@
     }
   }
 
+  /* ---------- Accessibility Platform ---------- */
+  const ACCESS_PROFILE_KEY = 'yaatra:accessibility-profile';
+  const ACCESS_REPORTS_KEY = 'yaatra:accessibility-reports';
+  let accessMap = null;
+  function getAccessibilityProfile(){
+    try { return JSON.parse(localStorage.getItem(ACCESS_PROFILE_KEY) || '{"preferences":[],"custom":""}'); } catch { return {preferences:[],custom:''}; }
+  }
+  function saveAccessibilityProfile(){
+    const profile = { preferences: [...document.querySelectorAll('.access-pref:checked')].map(x => x.value), custom: document.getElementById('custom-accessibility')?.value.trim() || '' };
+    localStorage.setItem(ACCESS_PROFILE_KEY, JSON.stringify(profile));
+    if (supabaseClient && currentUser) {
+      supabaseClient.from('accessibility_profiles').upsert({ user_id: currentUser.id, preferences: profile.preferences, custom_preferences: profile.custom, updated_at: new Date().toISOString() }).then(({error}) => { if (error) console.warn('Accessibility profile cloud sync unavailable:', error.message); });
+    }
+    toast('Accessibility profile saved. Routes will use these preferences.');
+  }
+  function loadAccessibilityProfile(){
+    const p = getAccessibilityProfile();
+    document.querySelectorAll('.access-pref').forEach(x => x.checked = p.preferences.includes(x.value));
+    const custom = document.getElementById('custom-accessibility'); if (custom) custom.value = p.custom || '';
+  }
+  function accessEvidenceBadge(evidence){
+    const labels = {verified:'Verified', user_reported:'User reported', ai_detected:'AI detected', unknown:'Unknown'};
+    return '<span class="' + (evidence === 'verified' ? 'live-badge' : 'demo-badge') + '">' + (labels[evidence] || 'Unknown') + '</span>';
+  }
+  function getCoords(){
+    return userCoords ? {lat:Number(userCoords.lat), lon:Number(userCoords.lon)} : null;
+  }
+  function accessLocalReports(){ try { return JSON.parse(localStorage.getItem(ACCESS_REPORTS_KEY) || '[]'); } catch { return []; } }
+  function renderAccessList(items){
+    const list = document.getElementById('access-map-list'); if (!list) return;
+    if (!items.length) { list.innerHTML = '<p class="text-sm text-[#718078]">No accessibility records found nearby. Unknown does not mean inaccessible—add an observation if you can verify one.</p>'; return; }
+    list.innerHTML = items.slice(0, 12).map(x => '<div class="rounded-2xl border border-[#DDE3DD] bg-white p-3"><div class="flex items-center justify-between gap-2"><b class="text-sm text-[#174C3C]">' + escapeHtml(x.name || x.category || 'Accessibility record') + '</b>' + accessEvidenceBadge(x.evidence || 'unknown') + '</div><p class="mt-1 text-xs text-[#718078]">' + escapeHtml((x.category || 'feature').replaceAll('_',' ')) + (x.description ? ' · ' + escapeHtml(x.description) : '') + '</p><div class="mt-2 flex items-center gap-2"><span class="text-xs text-[#718078]">Score: ' + (Number.isFinite(Number(x.score)) ? x.score : 'unknown') + '</span>' + (x.id ? '<button class="text-xs font-bold text-[#174C3C] underline" onclick="verifyAccessibilityReport(\'' + escapeHtml(x.id) + '\')">Verify / upvote</button>' : '') + '</div></div>').join('');
+  }
+  async function loadAccessibilityMap(){
+    const c = getCoords();
+    const list = document.getElementById('access-map-list');
+    if (!c) { if (list) list.innerHTML = '<p class="text-sm text-[#718078]">Location is needed for nearby accessibility data. Use the location button first.</p>'; return; }
+    if (list) list.innerHTML = '<p class="text-sm text-[#718078]">Loading nearby accessibility data…</p>';
+    try {
+      const res = await fetch(YAATRA_CONFIG.API_BASE + '/accessibility/nearby?lat=' + c.lat + '&lon=' + c.lon + '&radius=4000');
+      const data = await res.json();
+      renderAccessList([...(data.records || []), ...accessLocalReports().filter(r => Math.abs(Number(r.lat)-c.lat) < .08 && Math.abs(Number(r.lon)-c.lon) < .08)]);
+      if (window.L && document.getElementById('access-map')) {
+        if (!accessMap) { accessMap = L.map('access-map').setView([c.lat,c.lon], 15); L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap contributors'}).addTo(accessMap); }
+        accessMap.setView([c.lat,c.lon],15); accessMap.invalidateSize();
+        (data.records || []).slice(0,40).forEach(x => { if (x.lat && x.lon) L.marker([x.lat,x.lon]).addTo(accessMap).bindPopup('<b>' + escapeHtml(x.name || x.category) + '</b><br>' + escapeHtml(x.evidence || 'unknown')); });
+      }
+    } catch (e) { renderAccessList(accessLocalReports()); }
+  }
+  async function submitAccessibilityReport(){
+    const c = getCoords(); const category = document.getElementById('access-report-category')?.value; const place = document.getElementById('access-report-place')?.value.trim(); const description = document.getElementById('access-report-description')?.value.trim(); const status = document.getElementById('access-report-status');
+    if (!c) { if(status) status.textContent = 'Use live location before reporting.'; return; }
+    if (!description) { if(status) status.textContent = 'Add a short observation first.'; return; }
+    const photo = document.getElementById('access-report-photo')?.files?.[0];
+    const photoData = photo ? await new Promise(resolve => { const r = new FileReader(); r.onload = () => resolve(String(r.result || '')); r.onerror = () => resolve(''); r.readAsDataURL(photo); }) : '';
+    const report = { id:'local-' + Date.now(), category, name:place || 'Current location', description, lat:c.lat, lon:c.lon, evidence:'user_reported', score:50, confirmations:0, photo_name:photo?.name || '', photo_data:photoData, created_at:new Date().toISOString() };
+    const reports = accessLocalReports(); reports.unshift(report); localStorage.setItem(ACCESS_REPORTS_KEY, JSON.stringify(reports));
+    if (supabaseClient && currentUser) { const {error} = await supabaseClient.from('accessibility_reports').insert({ user_id: currentUser.id, place_name: report.name, category: report.category, description: report.description, photo_url: report.photo_name || null, latitude: report.lat, longitude: report.lon, evidence: report.evidence, confirmations: 0 }); if (error) console.warn('Accessibility report cloud sync unavailable:', error.message); }
+    try { await fetch(YAATRA_CONFIG.API_BASE + '/accessibility/report', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(report)}); } catch {}
+    if(status) status.textContent = 'Saved as user reported. It will remain unverified until confirmed.'; document.getElementById('access-report-description').value = ''; loadAccessibilityMap();
+  }
+  async function verifyAccessibilityReport(id){
+    const reports = accessLocalReports().map(r => r.id === id ? {...r, confirmations:(r.confirmations||0)+1, evidence:(r.confirmations||0)+1 >= 2 ? 'verified' : r.evidence} : r); localStorage.setItem(ACCESS_REPORTS_KEY, JSON.stringify(reports));
+    if (supabaseClient && currentUser && !String(id).startsWith('local-')) { const {error} = await supabaseClient.from('accessibility_verifications').insert({ report_id: id, user_id: currentUser.id }); if (error) console.warn('Accessibility verification cloud sync unavailable:', error.message); }
+    try { await fetch(YAATRA_CONFIG.API_BASE + '/accessibility/verify', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id})}); } catch {}
+    toast('Thanks. Your verification has been recorded.'); loadAccessibilityMap();
+  }
+  async function runAccessibilityScan(event){
+    const file = event.target.files?.[0]; const box = document.getElementById('access-scan-result'); if (!file || !box) return;
+    box.innerHTML = '<p class="text-white/80">Analysing image…</p>';
+    const reader = new FileReader(); reader.onload = async () => { try { const res = await fetch(YAATRA_CONFIG.API_BASE + '/vision/accessibility-scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({imageBase64:reader.result})}); const data = await res.json(); if(!res.ok) throw new Error(data.message || 'Scanner unavailable'); box.innerHTML = '<p class="font-bold">' + (data.findings?.length ? data.findings.map(x => escapeHtml(x.label) + ' (' + Math.round((x.confidence||0)*100) + '%)').join('<br>') : 'No accessibility feature confidently detected.') + '</p><p class="mt-2 text-white/60 text-xs">AI detected · Confirm visually before relying on this result.</p>'; } catch (e) { box.innerHTML = '<p class="text-white/75">' + escapeHtml(e.message) + '</p><p class="mt-2 text-white/60 text-xs">No result was invented because the image service is not configured or could not verify the photo.</p>'; } }; reader.readAsDataURL(file);
+  }
+  async function calculateAccessibleRoute(){
+    const destination = document.getElementById('access-route-destination')?.value.trim(); const out = document.getElementById('access-route-result'); const status = document.getElementById('access-route-status'); const c = getCoords();
+    if (!destination || !c) { if(out) out.innerHTML = '<p class="text-sm text-[#718078]">Enter a destination and enable location first.</p>'; return; }
+    if(status) status.textContent = 'Calculating…';
+    try { const geo = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(destination), {headers:{'Accept-Language':'en'}}).then(r=>r.json()); if(!geo?.[0]) throw new Error('Destination could not be located.'); const profile=getAccessibilityProfile(); const data=await fetch(YAATRA_CONFIG.API_BASE+'/accessibility/route',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({from:c,to:{lat:Number(geo[0].lat),lon:Number(geo[0].lon)},profile})}).then(r=>r.json()); if(!data.route) throw new Error(data.message||'Route unavailable.'); if(status) status.textContent='Preferences applied'; out.innerHTML='<div class="route-banner"><b class="text-[#174C3C]">' + escapeHtml(destination) + '</b><p class="mt-2 text-sm">' + data.route.distance_km + ' km · about ' + data.route.duration_minutes + ' min</p><p class="mt-2 text-xs text-[#5e5c50]">' + escapeHtml(data.route.guidance) + '</p><p class="mt-2 text-xs text-[#5e5c50]">Evidence: route geometry is live; individual ramps, lifts and temporary barriers may still be unknown.</p></div>'; } catch(e) { if(status) status.textContent='Unavailable'; out.innerHTML='<p class="text-sm text-[#718078]">' + escapeHtml(e.message) + '</p>'; }
+  }
+  function initAccessibility(){ loadAccessibilityProfile(); }
+
   // App Initialization
   const today = new Date();
   const nextWeek = new Date(Date.now() + 3 * 86400000);
@@ -2805,6 +2950,7 @@
   renderDestinationStrip();
   wireStartAutocomplete();
   initSupabase();
+  initAccessibility();
   loadWeather({ query: 'Coimbatore' });
   loadSavedTrips();
   renderAllMascots();

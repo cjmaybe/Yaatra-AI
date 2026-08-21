@@ -146,3 +146,23 @@ yaatra-complete/
 - **Row-Level Security (RLS)**: Users can only view and modify their own trips, expenses, and favourites.
 - **Server-Side API Key Protection**: Provider keys (`GROQ_API_KEY`, `GOOGLE_VISION_API_KEY`, etc.) remain safely protected on the backend server and are never exposed to the client.
 - **Graceful Fallbacks**: If external third-party services are unreachable or unconfigured, the app falls back to offline dictionaries, local storage, and high-resolution photo fallbacks without disrupting the user experience.
+
+## Universal Accessibility Upgrade
+
+Yaatra now includes an integrated accessibility layer that preserves the existing travel planner, live map, authentication, tools, and AI companion. The new **Accessibility Map** combines OpenStreetMap accessibility tags with Yaatra community reports and clearly labels records as **Verified**, **User reported**, **AI detected**, or **Unknown**. When a provider is unavailable, the interface falls back to session reports and does not invent accessibility information.
+
+The **Accessibility Profile** supports wheelchair users, limited mobility, blind or low-vision travellers, elderly travellers, and custom preferences. The profile is stored locally for guests and synchronized to Supabase for signed-in users. Accessible routing uses live geocoding and OSRM walking routes, then explains which profile preferences were applied and warns that temporary barriers and individual facility conditions still require verification.
+
+The **AI Accessibility Scanner** accepts an uploaded or camera-captured image. When `GOOGLE_VISION_API_KEY` is configured, the server sends the image to Google Vision label/object detection and returns only matching accessibility findings with confidence values. Without that key, the product explicitly reports that scanning is unavailable rather than creating a result. Reports support a category, description, GPS location, optional photo metadata, and verification/upvotes; two session confirmations promote a report to `verified` in the demo fallback, while signed-in users can sync report and verification records to Supabase.
+
+### Supabase migration
+
+Run the appended section of `supabase/schema.sql` after the existing schema. It creates `accessibility_profiles`, `accessibility_reports`, and `accessibility_verifications` with row-level security. Existing Yaatra tables and policies are preserved.
+
+### Optional AI scanning configuration
+
+```env
+GOOGLE_VISION_API_KEY=your_google_vision_api_key_here
+```
+
+The existing `GROQ_API_KEY` continues to power Yaatra AI. Accessibility profile context is now included in AI requests, and natural-language prompts such as “Find wheelchair accessible places near me” and “Give me a wheelchair-friendly route to the railway station” open the relevant integrated flows.

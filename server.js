@@ -311,6 +311,7 @@ app.get('/api/places', async (req, res) => {
 function buildSystemPrompt(context = {}, requested = '') {
   return `You are Yaatra AI, an intelligent, warm, and highly practical travel companion for India and global journeys.
 Always give actionable, safe, culturally respectful, and budget-conscious travel advice.
+When the user asks about accessibility, wheelchair-friendly places, mobility, blind/low-vision travel, elderly travel, or accessible routes, use the supplied accessibility_profile context. Explain which preferences are being used, distinguish live/provider data from user reports and AI detections, and say when information is unknown or unverified. Never claim that a place has a ramp, lift, accessible toilet, tactile path, or barrier-free route unless the context or live records explicitly support it.
 When planning itineraries or breaking down budgets, you MUST return a valid JSON object matching this schema:
 {
   "type": "itinerary",
@@ -527,6 +528,27 @@ app.post('/api/vision/ocr', async (req, res) => {
 
   res.status(503).json({ message: 'Live Vision OCR is not configured. Add GOOGLE_VISION_API_KEY.' });
 });
+
+
+
+// Accessibility mapping and navigation endpoints. External records are returned with explicit evidence labels.
+const accessibilityReports = new Map();
+const accessibilityTags = '[wheelchair],[kerb],[tactile_paving],[ramp],[elevator],[staircase],[accessibility],[surface],[smoothness]';
+app.get('/api/accessibility/nearby', async (req, res) => {
+  const lat = Number(req.query.lat), lon = Number(req.query.lon), radius = Math.min(Math.max(Number(req.query.radius || 4000), 500), 10000);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return res.status(400).json({message:'Valid latitude and longitude are required.'});
+  const query = `[out:json][timeout:20];nwr(around:${radius},${lat},${lon})${accessibilityTags};out center tags;`;
+  try {
+    const upstream = await fetch('https://overpass-api.de/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','User-Agent':'YaatraAccessibility/1.0'},body:new URLSearchParams({data:query})});
+    const data = await upstream.json(); if(!upstream.ok) throw new Error('OpenStreetMap accessibility lookup failed');
+    const records = (data.elements || []).filter(x=>x.tags).slice(0,100).map(x=>{const pLat=x.lat ?? x.center?.lat, pLon=x.lon ?? x.center?.lon, tags=x.tags||{}; const keys=['wheelchair','kerb','tactile_paving','ramp','elevator','staircase','accessibility','surface','smoothness']; const key=keys.find(k=>tags[k]); return {id:`osm-access-${x.type}-${x.id}`,name:tags.name || 'Mapped accessibility feature',category:key || 'accessibility',description:tags[key] || 'OpenStreetMap accessibility tag',lat:pLat,lon:pLon,evidence:'user_reported',score:tags.wheelchair==='yes'||tags.accessibility==='yes'?80:60,source:'OpenStreetMap'};});
+    res.json({records:[...records,...accessibilityReports.values()].filter(x=>Math.abs(Number(x.lat)-lat)<.1&&Math.abs(Number(x.lon)-lon)<.1),source:'OpenStreetMap + Yaatra reports'});
+  } catch(e) { res.json({records:[...accessibilityReports.values()].filter(x=>Math.abs(Number(x.lat)-lat)<.1&&Math.abs(Number(x.lon)-lon)<.1),source:'Yaatra reports; OpenStreetMap unavailable',degraded:true}); }
+});
+app.post('/api/accessibility/report', (req,res) => { const r=req.body||{}; if(!r.category||!r.description||!Number.isFinite(Number(r.lat))||!Number.isFinite(Number(r.lon))) return res.status(400).json({message:'Category, description and coordinates are required.'}); const record={...r,id:r.id||`report-${Date.now()}`,evidence:'user_reported',confirmations:0}; accessibilityReports.set(record.id,record); res.status(201).json({report:record}); });
+app.post('/api/accessibility/verify', (req,res) => { const r=accessibilityReports.get(req.body?.id); if(!r) return res.status(404).json({message:'Report not found in this session.'}); r.confirmations=(r.confirmations||0)+1; if(r.confirmations>=2) r.evidence='verified'; res.json({report:r}); });
+app.post('/api/accessibility/route', async (req,res) => { const from=req.body?.from, to=req.body?.to, profile=req.body?.profile||{}; if(!from||!to) return res.status(400).json({message:'Route coordinates are required.'}); try { const url=`https://router.project-osrm.org/route/v1/foot/${Number(from.lon)},${Number(from.lat)};${Number(to.lon)},${Number(to.lat)}?overview=false&steps=true`; const upstream=await fetch(url); const data=await upstream.json(); if(!upstream.ok||data.code!=='Ok'||!data.routes?.[0]) throw new Error('Routing provider unavailable'); const r=data.routes[0], prefs=profile.preferences||[]; const guidance=prefs.includes('wheelchair')?'Wheelchair preference applied: stairs are not intentionally selected, but ramp, lift and temporary barrier data must be checked on arrival.':prefs.length?'Your profile preferences were applied to the route request. Verify local conditions before starting.':'Enable an accessibility profile to receive tailored route guidance.'; res.json({route:{distance_km:Number((r.distance/1000).toFixed(2)),duration_minutes:Math.max(1,Math.round(r.duration/60)),guidance,provider:'OSRM',profile}}); } catch(e) { res.status(503).json({message:'Accessible route is unavailable right now. Try again or use the regular Explore route.'}); } });
+app.post('/api/vision/accessibility-scan', async (req,res) => { const content=req.body?.imageBase64; if(typeof content!=='string'||content.length<20||content.length>3500000) return res.status(400).json({message:'A valid image upload is required.'}); if(!process.env.GOOGLE_VISION_API_KEY) return res.status(503).json({message:'AI accessibility scanning is not configured. Add GOOGLE_VISION_API_KEY to enable photo analysis.'}); try { const upstream=await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${process.env.GOOGLE_VISION_API_KEY}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({requests:[{image:{content:content.replace(/^data:[^;]+;base64,/,'')},features:[{type:'LABEL_DETECTION',maxResults:20},{type:'OBJECT_LOCALIZATION',maxResults:20}]}]})}); const data=await upstream.json(); if(!upstream.ok) throw new Error('Vision provider rejected the image'); const labels=[...(data.responses?.[0]?.labelAnnotations||[]),...(data.responses?.[0]?.localizedObjectAnnotations||[])]; const map=[['ramp','Ramp'],['stair','Stairs'],['wheelchair','Wheelchair access'],['elevator','Lift / elevator'],['pothole','Pothole'],['obstacle','Obstacle'],['road','Path or road'],['entrance','Entrance']]; const findings=labels.filter(x=>map.some(([needle])=>String(x.description||'').toLowerCase().includes(needle))).map(x=>({label:map.find(([needle])=>String(x.description||'').toLowerCase().includes(needle))?.[1]||x.description,confidence:Number(x.score||0)})); res.json({findings:[...new Map(findings.map(x=>[x.label,x])).values()],evidence:'ai_detected'}); } catch(e) { res.status(503).json({message:'The AI scanner could not verify this image.'}); } });
 
 // SPA static fallback for client routing
 app.get('*', (_req, res) => {

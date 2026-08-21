@@ -173,3 +173,44 @@ CREATE INDEX IF NOT EXISTS trips_user_id_idx ON public.trips(user_id);
 CREATE INDEX IF NOT EXISTS expenses_trip_id_idx ON public.expenses(trip_id);
 CREATE INDEX IF NOT EXISTS expenses_user_id_idx ON public.expenses(user_id);
 CREATE INDEX IF NOT EXISTS favourites_user_id_idx ON public.favourites(user_id);
+
+
+-- Universal accessibility extension for Yaatra.
+create table if not exists public.accessibility_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  preferences jsonb not null default '[]'::jsonb,
+  custom_preferences text not null default '',
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.accessibility_reports (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid references auth.users(id) on delete set null,
+  place_name text,
+  category text not null,
+  description text not null,
+  photo_url text,
+  latitude double precision not null,
+  longitude double precision not null,
+  evidence text not null default 'user_reported',
+  confirmations integer not null default 0,
+  expires_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index if not exists accessibility_reports_geo_idx on public.accessibility_reports(latitude, longitude);
+create table if not exists public.accessibility_verifications (
+  report_id uuid references public.accessibility_reports(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (report_id, user_id)
+);
+alter table public.accessibility_profiles enable row level security;
+alter table public.accessibility_reports enable row level security;
+alter table public.accessibility_verifications enable row level security;
+drop policy if exists "Users manage own accessibility profile" on public.accessibility_profiles;
+create policy "Users manage own accessibility profile" on public.accessibility_profiles for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "Anyone can view accessibility reports" on public.accessibility_reports;
+create policy "Anyone can view accessibility reports" on public.accessibility_reports for select using (true);
+drop policy if exists "Signed in users can report accessibility" on public.accessibility_reports;
+create policy "Signed in users can report accessibility" on public.accessibility_reports for insert with check (auth.uid() = user_id);
+drop policy if exists "Users can verify accessibility reports" on public.accessibility_verifications;
+create policy "Users can verify accessibility reports" on public.accessibility_verifications for insert with check (auth.uid() = user_id);
