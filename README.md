@@ -166,3 +166,10 @@ GOOGLE_VISION_API_KEY=your_google_vision_api_key_here
 ```
 
 The existing `GROQ_API_KEY` continues to power Yaatra AI. Accessibility profile context is now included in AI requests, and natural-language prompts such as “Find wheelchair accessible places near me” and “Give me a wheelchair-friendly route to the railway station” open the relevant integrated flows.
+
+## 👨‍💻 Project Contributor
+
+**Kishore M**
+
+- GitHub: [@kishore8807](https://github.com/kishore8807)
+- Profile: https://github.com/kishore8807
